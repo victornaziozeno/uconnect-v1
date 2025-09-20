@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UCONNECT - Login</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="login-container">
+        <img src="assets/logo.png" alt="UCONNECT Logo" class="logo">
+        <h2>Login</h2>
+        <form id="loginForm">
+            <label for="registration">Matrícula:</label>
+            <input type="text" id="registration" name="registration" required>
+
+            <label for="password">Senha:</label>
+            <input type="password" id="password" name="password" required>
+
+            <button type="submit">Entrar</button>
+        </form>
+        <div id="loginError" class="error"></div>
+    </div>
+
+    <script src="scripts/login.js"></script>
+</body>
+</html>
