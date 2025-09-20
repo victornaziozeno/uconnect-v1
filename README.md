@@ -18,7 +18,6 @@ O objetivo é substituir a fragmentação causada pelo uso de ferramentas extern
 - Frontend: ...  
 - Backend: Python (FastAPI) + SQLAlchemy + Alembic.  
 - Banco de Dados: MySQL 8 (com suporte a replicação e particionamento).  
-- Infraestrutura: Docker + Docker Compose + Redis (cache/pubsub).  
 - Comunicação em tempo real: WebSockets para chat e notificações.  
 
 ---
@@ -47,8 +46,10 @@ O objetivo é substituir a fragmentação causada pelo uso de ferramentas extern
 ---
 
 ## Status do Projeto
-Em fase inicial de desenvolvimento (MVP).  
-Estruturação do backend (FastAPI + MySQL) e frontend (React + Bootstrap) em andamento.  
+### Em fase inicial de desenvolvimento (MVP).  
+>Estruturação do backend (FastAPI + MySQL) completo e frontend (React + Bootstrap) em andamento.  
+>Estabelecimento do banco de dados completo.
+>Autenticação de usuários completo.
 
 ---
 
@@ -58,7 +59,6 @@ Estruturação do backend (FastAPI + MySQL) e frontend (React + Bootstrap) em an
 ### Pré-requisitos
 - [ ] Instalar Python (versão recomendada: X.X)  
 - [ ] Instalar Node.js (versão recomendada: X.X)  
-- [ ] Instalar Docker e Docker Compose  
 - [ ] Configurar variáveis de ambiente no arquivo `.env`  
 
 ---
