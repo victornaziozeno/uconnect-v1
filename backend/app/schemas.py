@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, Union
 from .models import UserRole, AccessStatus  
 
+// Autenticação
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -32,11 +33,30 @@ class UserResponse(UserBase):
     class Config:
         from_attributes = True
         populate_by_name = True
+        orm_mode = True
+        populate_by_name = True
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     accessStatus: Optional[AccessStatus] = None  
+
+// Calendário
+class EventBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    type: str
+
+class EventCreate(EventBase):
+    pass
+
+class EventUpdate(EventBase):
+    pass
+
+class EventResponse(EventBase):
+    id: int
+    creator_id: int
+    created_at: datetime
     
-    class Config:
-        populate_by_name = True
