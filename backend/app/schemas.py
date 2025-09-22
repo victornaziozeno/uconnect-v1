@@ -9,7 +9,7 @@ class Config:
         orm_mode = True
         populate_by_name = True
 
-// Autenticação
+# Autenticação
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -41,7 +41,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     accessStatus: Optional[AccessStatus] = None  
 
-// Calendário
+# Calendário
 class EventBase(BaseModel):
     title: str
     description: Optional[str] = None
@@ -60,4 +60,5 @@ class EventResponse(EventBase):
     creator_id: int
     created_at: datetime
     
+
 
