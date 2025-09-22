@@ -3,6 +3,12 @@ from datetime import datetime
 from typing import Optional, Union
 from .models import UserRole, AccessStatus  
 
+class Config:
+        from_attributes = True
+        populate_by_name = True
+        orm_mode = True
+        populate_by_name = True
+
 // Autenticação
 class Token(BaseModel):
     access_token: str
@@ -29,12 +35,6 @@ class UserResponse(UserBase):
     passwordHash: str
     accessStatus: AccessStatus 
     createdAt: datetime 
-    
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-        orm_mode = True
-        populate_by_name = True
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
@@ -60,3 +60,4 @@ class EventResponse(EventBase):
     creator_id: int
     created_at: datetime
     
+
