@@ -1,9 +1,6 @@
-// calendario.js
-
 document.addEventListener('DOMContentLoaded', function () {
     let calendarioElemento = document.getElementById('calendar');
     let eventoAtual = null;
-    const API_URL = 'http://127.0.0.1:8000/api/events'; // URL do nosso backend
 
     // pega intervalo de hoje (00:00 até 23:59)
     let hoje = new Date();
@@ -30,32 +27,7 @@ document.addEventListener('DOMContentLoaded', function () {
             day: 'Dia',
             list: 'Lista'
         },
-        // 🔄 NOVO: Carrega eventos da API
-        events: function(fetchInfo, successCallback, failureCallback) {
-            fetch(API_URL)
-                .then(response => response.json())
-                .then(data => {
-                    // Mapeia os dados da API para o formato que o FullCalendar entende
-                    const events = data.map(event => ({
-                        id: event.id,
-                        title: event.title,
-                        start: event.start, // O backend já retorna como 'start'
-                        end: event.end, // Adicionar se tiver
-                        extendedProps: {
-                            descricao: event.description,
-                            tipo: event.tipo || 'evento-geral'
-                        },
-                        className: event.tipo || 'evento-geral'
-                    }));
-                    successCallback(events);
-                    // A agenda lateral é atualizada após os eventos serem carregados
-                    setTimeout(atualizarAgendaHoje, 0); 
-                })
-                .catch(error => {
-                    console.error('Erro ao buscar eventos:', error);
-                    failureCallback(error);
-                });
-        },
+        events: [],
         eventClick: function (detalhes) {
             eventoAtual = detalhes.event;
             let inicio = eventoAtual.start;
@@ -93,15 +65,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     calendario.render();
 
-    // Função para atualizar o painel lateral (sem alterações)
+    // 🔄 Atualizar painel lateral
     function atualizarAgendaHoje() {
         let eventos = calendario.getEvents().filter(evento => {
             let inicio = evento.start;
             let fim = evento.end || evento.start;
-            return (inicio < amanha && fim >= hoje);
+            return (inicio < amanha && fim >= hoje); // evento ocupa parte do dia
         });
-        
-        document.getElementById("today-date").innerText = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+
+        document.getElementById("today-date").innerText =
+            new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+
         let listaEventos = document.getElementById("eventList");
         listaEventos.innerHTML = "";
 
@@ -121,82 +95,70 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ➕ Adicionar evento (MODIFICADO)
+    // Inicializa agenda
+    atualizarAgendaHoje();
+
+    // ➕ Adicionar evento
     document.getElementById('formAdicionarEvento').addEventListener('submit', function (e) {
         e.preventDefault();
         let titulo = document.getElementById('tituloEvento').value;
         let data = document.getElementById('dataEvento').value;
         let horaInicio = document.getElementById('horaInicioEvento').value;
+        let horaFim = document.getElementById('horaFimEvento').value;
         let descricao = document.getElementById('descricaoEvento').value;
-        
+        let tipo = document.getElementById('tipoEvento').value;
+
         let dataInicio = new Date(data + "T" + (horaInicio || "00:00") + ":00");
+        let dataFim = horaFim ? new Date(data + "T" + horaFim + ":00") : new Date(dataInicio.getTime() + 30 * 60000);
 
-        const novoEvento = {
+        calendario.addEvent({
             title: titulo,
-            start: dataInicio.toISOString(),
-            descricao: descricao,
-        };
+            start: dataInicio,
+            end: dataFim,
+            className: tipo,
+            extendedProps: { descricao: descricao, tipo: tipo }
+        });
 
-        fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(novoEvento)
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log(data.message);
-            calendario.refetchEvents(); // Recarrega os eventos do servidor
-            document.getElementById('formAdicionarEvento').reset();
-            bootstrap.Modal.getInstance(document.getElementById('adicionarEventoModal')).hide();
-        })
-        .catch(error => console.error('Erro ao adicionar evento:', error));
+        document.getElementById('formAdicionarEvento').reset();
+        bootstrap.Modal.getInstance(document.getElementById('adicionarEventoModal')).hide();
+
+        atualizarAgendaHoje();
     });
 
-    // ✏️ Editar evento (MODIFICADO)
+    // ✏️ Editar evento
     document.getElementById('formEditarEvento').addEventListener('submit', function (e) {
         e.preventDefault();
         if (eventoAtual) {
             let titulo = document.getElementById('editarTituloEvento').value;
             let data = document.getElementById('editarDataEvento').value;
             let horaInicio = document.getElementById('editarHoraInicioEvento').value;
+            let horaFim = document.getElementById('editarHoraFimEvento').value;
             let descricao = document.getElementById('editarDescricaoEvento').value;
-            
+            let tipo = document.getElementById('editarTipoEvento').value;
+
             let dataInicio = new Date(data + "T" + (horaInicio || "00:00") + ":00");
+            let dataFim = horaFim ? new Date(data + "T" + horaFim + ":00") : new Date(dataInicio.getTime() + 30 * 60000);
 
-            const eventoAtualizado = {
-                title: titulo,
-                start: dataInicio.toISOString(),
-                descricao: descricao
-            };
+            eventoAtual.setProp('title', titulo);
+            eventoAtual.setStart(dataInicio);
+            eventoAtual.setEnd(dataFim);
+            eventoAtual.setExtendedProp('descricao', descricao);
+            eventoAtual.setExtendedProp('tipo', tipo);
+            eventoAtual.setProp('classNames', [tipo]);
 
-            fetch(`${API_URL}/${eventoAtual.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(eventoAtualizado)
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log(data.message);
-                calendario.refetchEvents();
-                bootstrap.Modal.getInstance(document.getElementById('editarEventoModal')).hide();
-            })
-            .catch(error => console.error('Erro ao editar evento:', error));
+            bootstrap.Modal.getInstance(document.getElementById('editarEventoModal')).hide();
+
+            atualizarAgendaHoje();
         }
     });
 
-    // ❌ Excluir evento (MODIFICADO)
+    // ❌ Excluir evento
     document.getElementById('btnExcluirEvento').addEventListener('click', function () {
-        if (eventoAtual && confirm('Tem certeza que deseja excluir este evento?')) {
-            fetch(`${API_URL}/${eventoAtual.id}`, {
-                method: 'DELETE'
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log(data.message);
-                calendario.refetchEvents();
-                bootstrap.Modal.getInstance(document.getElementById('editarEventoModal')).hide();
-            })
-            .catch(error => console.error('Erro ao excluir evento:', error));
+        if (eventoAtual) {
+            eventoAtual.remove();
+            bootstrap.Modal.getInstance(document.getElementById('editarEventoModal')).hide();
+
+            atualizarAgendaHoje();
         }
     });
 });
