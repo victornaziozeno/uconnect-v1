@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth_router, users_router
+from .routers import auth, users, access   
 from .db import Base, engine
 
 app = FastAPI(title="UCONNECT API", version="1.0.0")
@@ -13,8 +13,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
-app.include_router(users_router)
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(access.router)  
 
 @app.get("/")
 async def root():
