@@ -3,7 +3,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     let calendarioElemento = document.getElementById('calendar');
     let eventoAtual = null;
-    const API_URL = 'http://127.0.0.1:5000/api/events'; // URL do nosso backend
+    const API_URL = 'http://127.0.0.1:8000/api/events'; // URL do nosso backend
 
     // pega intervalo de hoje (00:00 até 23:59)
     let hoje = new Date();
