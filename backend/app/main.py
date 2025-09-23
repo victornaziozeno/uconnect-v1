@@ -15,7 +15,6 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(users.router)
-app.include_router(access.router)  
 
 @app.get("/")
 async def root():
@@ -24,4 +23,5 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
 
