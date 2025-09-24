@@ -32,9 +32,11 @@ class UserLogin(BaseModel):
 
 class UserResponse(UserBase):
     id: int
-    passwordHash: str
     accessStatus: AccessStatus 
     createdAt: datetime 
+
+    class Config:
+        orm_mode = True
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
