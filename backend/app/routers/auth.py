@@ -1,52 +1,35 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from datetime import datetime, timedelta
 from ..db import get_db
 from .. import models, utils
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 class LoginRequest(BaseModel):
-    registration: str
+    username: str
     password: str
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str
-    expires_at: datetime
-
-@router.post("/login", response_model=TokenResponse)
-def login(login_data: LoginRequest, db: Session = Depends(get_db)):
-    # busca indexada por registration
-    user = db.query(models.User).filter(models.User.registration == login_data.registration).first()
+@router.post("/login")
+async def login(
+    login_data: LoginRequest, 
+    db: Session = Depends(get_db)
+):
+    user = db.query(models.User).filter(
+        models.User.registration == login_data.username
+    ).first()
+    
     if not user or not utils.verify_password(login_data.password, user.passwordHash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Matrícula ou senha incorretas")
-
-    if user.accessStatus != models.AccessStatus.active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso inativo")
-
-    token, expire = utils.create_access_token(data={"sub": user.registration})
-    db_session = models.Session(token=token, userId=user.id, startDate=datetime.utcnow(), expirationDate=expire)
-    db.add(db_session)
-    db.commit()
-
-    return {"access_token": token, "token_type": "bearer", "expires_at": expire}
-
-@router.post("/logout")
-def logout(token: str = Depends(utils.oauth2_scheme), db: Session = Depends(get_db)):
-    session = db.query(models.Session).filter(models.Session.token == token).first()
-    if session:
-        db.delete(session)
-        db.commit()
-    return {"message": "Sessão encerrada"}
-
-@router.get("/validate")
-def validate_session(token: str = Depends(utils.oauth2_scheme), db: Session = Depends(get_db)):
-    session = db.query(models.Session).filter(models.Session.token == token).first()
-    if not session:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão inválida")
-    if session.expirationDate < datetime.utcnow():
-        db.delete(session); db.commit()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão expirada")
-    return {"valid": True, "expires_at": session.expirationDate}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Matrícula ou senha incorretas",
+        )
+    
+    if not user.accessStatus:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso inativo",
+        )
+    
+    access_token = utils.create_access_token(data={"sub": user.registration})
+    return {"access_token": access_token, "token_type": "bearer"}
