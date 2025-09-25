@@ -1,7 +1,33 @@
 document.addEventListener('DOMContentLoaded', function () {
     let calendarioElemento = document.getElementById('calendar');
+    
     let eventoAtual = null;
 
+async function buscarEventos() {
+    try {
+        const response = await fetch('http://127.0.0.1:8000/events/'); // URL da sua API
+        if (!response.ok) {
+            throw new Error('Falha ao buscar eventos da API');
+        }
+        const eventosDaApi = await response.json();
+
+        // O FullCalendar espera 'start' e 'end', então precisamos adaptar os nomes
+        return eventosDaApi.map(evento => ({
+            id: evento.id,
+            title: evento.title,
+            start: evento.timestamp, // Ajuste se o nome do campo for diferente
+            // end: evento.end_time, // Adicione se houver um campo para o fim
+            extendedProps: {
+                descricao: evento.description,
+            }
+        }));
+    } catch (error) {
+        console.error("Erro:", error);
+        alert("Não foi possível carregar os eventos do calendário.");
+        return []; // Retorna vazio em caso de erro
+    }
+}
+    
     // pega intervalo de hoje (00:00 até 23:59)
     let hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -27,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
             day: 'Dia',
             list: 'Lista'
         },
-        events: [],
+          events: buscarEventos,
         eventClick: function (detalhes) {
             eventoAtual = detalhes.event;
             let inicio = eventoAtual.start;
