@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     
     // Pega intervalo de hoje (00:00 até 23:59)
+
     let hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     let amanha = new Date(hoje);
@@ -59,13 +60,10 @@ document.addEventListener('DOMContentLoaded', function () {
         },
         events: buscarEventos,
         
-        // <-- CORREÇÃO 1: Adiciona o callback 'eventsSet'.
-        // Esta função garante que a agenda lateral só será atualizada DEPOIS 
-        // que os eventos da API forem carregados e renderizados no calendário.
         eventsSet: function() {
             atualizarAgendaHoje();
         },
-        
+       
         eventClick: function (detalhes) {
             eventoAtual = detalhes.event;
             let inicio = eventoAtual.start;
