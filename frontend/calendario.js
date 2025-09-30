@@ -1,8 +1,38 @@
 document.addEventListener('DOMContentLoaded', function () {
     let calendarioElemento = document.getElementById('calendar');
+    
     let eventoAtual = null;
 
-    // pega intervalo de hoje (00:00 até 23:59)
+    async function buscarEventos() {
+        try {
+            const response = await fetch('http://127.0.0.1:8000/events/'); // URL da sua API
+            if (!response.ok) {
+                throw new Error('Falha ao buscar eventos da API');
+            }
+            const eventosDaApi = await response.json();
+
+            // O FullCalendar espera 'start', então adaptamos os nomes
+            return eventosDaApi.map(evento => ({
+                id: evento.id,
+                title: evento.title,
+                start: evento.timestamp,
+                // <-- CORREÇÃO 2: Adiciona uma classe ao evento.
+                // Isso evita o erro 'classNames[0]' ao clicar para editar.
+                className: 'evento-geral', 
+                extendedProps: {
+                    descricao: evento.description,
+                    // Adicionado para consistência, usado no popover e na edição
+                    tipo: 'evento-geral' 
+                }
+            }));
+        } catch (error) {
+            console.error("Erro:", error);
+            alert("Não foi possível carregar os eventos do calendário.");
+            return []; // Retorna vazio em caso de erro
+        }
+    }
+    
+    // Pega intervalo de hoje (00:00 até 23:59)
     let hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     let amanha = new Date(hoje);
@@ -27,7 +57,15 @@ document.addEventListener('DOMContentLoaded', function () {
             day: 'Dia',
             list: 'Lista'
         },
-        events: [],
+        events: buscarEventos,
+        
+        // <-- CORREÇÃO 1: Adiciona o callback 'eventsSet'.
+        // Esta função garante que a agenda lateral só será atualizada DEPOIS 
+        // que os eventos da API forem carregados e renderizados no calendário.
+        eventsSet: function() {
+            atualizarAgendaHoje();
+        },
+        
         eventClick: function (detalhes) {
             eventoAtual = detalhes.event;
             let inicio = eventoAtual.start;
@@ -38,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('editarHoraInicioEvento').value = inicio.toTimeString().slice(0, 5);
             document.getElementById('editarHoraFimEvento').value = fim ? fim.toTimeString().slice(0, 5) : "";
             document.getElementById('editarDescricaoEvento').value = eventoAtual.extendedProps.descricao || "";
-            document.getElementById('editarTipoEvento').value = eventoAtual.classNames[0] || "evento-geral";
+            document.getElementById('editarTipoEvento').value = eventoAtual.extendedProps.tipo || "evento-geral";
 
             let modal = new bootstrap.Modal(document.getElementById('editarEventoModal'));
             modal.show();
@@ -64,6 +102,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     calendario.render();
+
+    // <-- CORREÇÃO 1: A chamada inicial para 'atualizarAgendaHoje()' foi removida daqui 
+    // para evitar a "race condition". Agora ela é controlada pelo 'eventsSet'.
 
     // 🔄 Atualizar painel lateral
     function atualizarAgendaHoje() {
@@ -95,34 +136,69 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Inicializa agenda
-    atualizarAgendaHoje();
-
     // ➕ Adicionar evento
-    document.getElementById('formAdicionarEvento').addEventListener('submit', function (e) {
-        e.preventDefault();
-        let titulo = document.getElementById('tituloEvento').value;
-        let data = document.getElementById('dataEvento').value;
-        let horaInicio = document.getElementById('horaInicioEvento').value;
-        let horaFim = document.getElementById('horaFimEvento').value;
-        let descricao = document.getElementById('descricaoEvento').value;
-        let tipo = document.getElementById('tipoEvento').value;
+  document.getElementById('formAdicionarEvento').addEventListener('submit', async function (e) {
+    e.preventDefault();
 
-        let dataInicio = new Date(data + "T" + (horaInicio || "00:00") + ":00");
-        let dataFim = horaFim ? new Date(data + "T" + horaFim + ":00") : new Date(dataInicio.getTime() + 30 * 60000);
+    // --- INÍCIO DA MODIFICAÇÃO ---
 
-        calendario.addEvent({
-            title: titulo,
-            start: dataInicio,
-            end: dataFim,
-            className: tipo,
-            extendedProps: { descricao: descricao, tipo: tipo }
+    // 1. Pega o token de acesso do localStorage
+    const token = localStorage.getItem('accessToken');
+
+    // 2. Verifica se o token existe. Se não, o usuário não está logado.
+    if (!token) {
+        alert("Você precisa estar logado para adicionar um evento.");
+        // Opcional: redirecionar para a página de login
+        // window.location.href = '/login.html'; 
+        return;
+    }
+
+    // --- FIM DA MODIFICAÇÃO ---
+
+    const titulo = document.getElementById('tituloEvento').value;
+    const data = document.getElementById('dataEvento').value;
+    const horaInicio = document.getElementById('horaInicioEvento').value;
+    const descricao = document.getElementById('descricaoEvento').value;
+    const tipoEvento = document.getElementById('tipoEvento').value;
+    const dataTimestamp = new Date(data + "T" + (horaInicio || "00:00") + ":00").toISOString();
+
+    const novoEvento = {
+        title: titulo,
+        description: descricao,
+        timestamp: dataTimestamp,
+        eventType: tipoEvento,
+    };
+
+    try {
+        const response = await fetch('http://127.0.0.1:8000/events/', {
+            method: 'POST',
+            // --- INÍCIO DA MODIFICAÇÃO ---
+            headers: {
+                'Content-Type': 'application/json',
+                // 3. Adiciona o cabeçalho de autorização com o token
+                'Authorization': `Bearer ${token}`
+            },
+            // --- FIM DA MODIFICAÇÃO ---
+            body: JSON.stringify(novoEvento),
         });
+
+        if (!response.ok) {
+            // Verifica se o erro é especificamente de autenticação
+            if (response.status === 401) {
+                throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
+            }
+            throw new Error('Falha ao salvar o evento.');
+        }
 
         document.getElementById('formAdicionarEvento').reset();
         bootstrap.Modal.getInstance(document.getElementById('adicionarEventoModal')).hide();
+        calendario.refetchEvents();
 
-        atualizarAgendaHoje();
+    } catch (error) {
+        console.error("Erro ao adicionar evento:", error);
+        // Exibe a mensagem de erro específica (ex: sessão expirada)
+        alert(error.message);
+    }
     });
 
     // ✏️ Editar evento
@@ -147,8 +223,6 @@ document.addEventListener('DOMContentLoaded', function () {
             eventoAtual.setProp('classNames', [tipo]);
 
             bootstrap.Modal.getInstance(document.getElementById('editarEventoModal')).hide();
-
-            atualizarAgendaHoje();
         }
     });
 
@@ -157,8 +231,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (eventoAtual) {
             eventoAtual.remove();
             bootstrap.Modal.getInstance(document.getElementById('editarEventoModal')).hide();
-
-            atualizarAgendaHoje();
         }
     });
 });
