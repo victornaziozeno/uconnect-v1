@@ -1,5 +1,4 @@
 # ---------------- AUTHENTICATION SCHEMAS ---------------- #
-# Esquemas Pydantic para lidar com a lógica de autenticação, definindo a estrutura dos dados do token e as informações necessárias para o login do usuário.
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
 from typing import Optional
@@ -18,8 +17,6 @@ class UserLogin(BaseModel):
     password: str
 
 # ---------------- USER SCHEMAS ---------------- #
-# Define as diferentes "formas" de um usuário no sistema: UserBase com os campos comuns, UserCreate para o registro (incluindo senha), UserUpdate para alterações e UserResponse para exibir os dados de um usuário sem expor a senha.
-
 class UserBase(BaseModel):
     registration: str
     name: str
@@ -33,9 +30,8 @@ class UserResponse(UserBase):
     id: int
     accessStatus: AccessStatus
     createdAt: datetime
-
-    class Config:
-        from_attributes = True
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
@@ -43,15 +39,14 @@ class UserUpdate(BaseModel):
     accessStatus: Optional[AccessStatus] = None
 
 # ---------------- CALENDAR SCHEMAS ---------------- #
-# Esquemas para a criação e visualização de eventos. 
-
 class EventBase(BaseModel):
     title: str
     description: Optional[str] = None
-    start_time: datetime
-    end_time: Optional[datetime] = None
-    classGroup: Optional[str] = None
-    event_type: Optional[str] = "evento-geral"
+    timestamp: datetime
+    # CORREÇÃO: Renomeado de 'classGroup' para 'academicGroupId' para ser consistente com o modelo do banco.
+    academicGroupId: Optional[str] = None
+    # CORREÇÃO: Renomeado de 'event_type' para 'eventType' (padrão camelCase)
+    eventType: Optional[str] = "evento-geral"
 
 class EventCreate(EventBase):
     pass
@@ -59,10 +54,10 @@ class EventCreate(EventBase):
 class EventUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    classGroup: Optional[str] = None
-    event_type: Optional[str] = None
+    # CORREÇÃO: Trocado 'start_time' e 'end_time' por 'timestamp' para consistência.
+    timestamp: Optional[datetime] = None
+    academicGroupId: Optional[str] = None
+    eventType: Optional[str] = None
 
 class EventResponse(EventBase):
     id: int

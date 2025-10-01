@@ -39,13 +39,16 @@ class User(Base):
     __tablename__ = "User"
     
     id = Column(Integer, primary_key=True, index=True)
-    registration = Column(String(20), unique=True, index=True, nullable=False)
+    registration = Column(String(50), unique=True, index=True, nullable=False) # Ajustado o tamanho para 50 para corresponder ao DB
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     passwordHash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
     accessStatus = Column(Enum(AccessStatus), default=AccessStatus.active, nullable=False)
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    events_created = relationship("Event", back_populates="creator")
 
     __table_args__ = (
         Index("ix_users_registration", "registration"),
@@ -67,20 +70,19 @@ class Session(Base):
 
 
 class Event(Base):
-    __tablename__ = "events"
+    __tablename__ = "Event"
     
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    start_time = Column(DateTime, nullable=False)
-    end_time = Column(DateTime, nullable=True)
-    classGroup = Column(String(50), nullable=True)
-    creatorId = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    event_type = Column(String(50), default="evento-geral")
+    timestamp = Column(DateTime, nullable=False)
+    academicGroupId = Column(String(50), nullable=True)
+    
+    creatorId = Column(Integer, ForeignKey("User.id", ondelete="SET NULL"), nullable=True)
     
     creator = relationship("User", back_populates="events_created")
     
     __table_args__ = (
-        Index("idx_event_start", "start_time"),
+        Index("idx_event_timestamp", "timestamp"),
         Index("idx_event_creator", "creatorId"),
     )

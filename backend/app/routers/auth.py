@@ -18,15 +18,30 @@ class TokenResponse(BaseModel):
 
 @router.post("/login", response_model=TokenResponse)
 def login(login_data: LoginRequest, db: Session = Depends(get_db)):
-    # busca indexada por registration
-    user = db.query(models.User).filter(models.User.registration == login_data.registration).first()
-    if not user or not utils.verify_password(login_data.password, user.passwordHash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Matrícula ou senha incorretas")
+    
+    # <-- CORREÇÃO: Remove espaços em branco da matrícula recebida
+    user_registration = login_data.registration.strip()
+    user_password = login_data.password.strip()
+
+    # Busca o usuário no banco usando a matrícula sem espaços
+    user = db.query(models.User).filter(models.User.registration == user_registration).first()
+
+    # A verificação agora usa a senha sem espaços
+    if not user or not utils.verify_password(user_password, user.passwordHash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Matrícula ou senha incorretas"
+        )
 
     if user.accessStatus != models.AccessStatus.active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso inativo")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Acesso inativo"
+        )
 
     token, expire = utils.create_access_token(data={"sub": user.registration})
+    
+    # ... (resto da sua função para salvar a sessão)
     db_session = models.Session(token=token, userId=user.id, startDate=datetime.utcnow(), expirationDate=expire)
     db.add(db_session)
     db.commit()
