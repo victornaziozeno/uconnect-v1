@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from .db import get_db
 from . import models
-from .config import settings  # <-- IMPORTA AS CONFIGURAÇÕES
+from .config import settings  
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -56,7 +56,6 @@ credentials_exception = HTTPException(
 )
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
-    # A lógica complexa de 'try/except' foi movida para o utils.py
     payload = decode_token(token)
     
     if payload is None:
@@ -70,7 +69,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     if user is None:
         raise credentials_exception
     
-    # O resto da lógica (verificar status, sessão, etc.) permanece
     if user.accessStatus != models.AccessStatus.active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso inativo")
 

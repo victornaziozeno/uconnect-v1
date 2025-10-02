@@ -1,6 +1,7 @@
 # ---------------- AUTHENTICATION SCHEMAS ---------------- #
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
+from datetime import date
 from typing import Optional
 from .models import UserRole, AccessStatus 
 
@@ -43,21 +44,23 @@ class EventBase(BaseModel):
     title: str
     description: Optional[str] = None
     timestamp: datetime
-    # CORREÇÃO: Renomeado de 'classGroup' para 'academicGroupId' para ser consistente com o modelo do banco.
     academicGroupId: Optional[str] = None
-    # CORREÇÃO: Renomeado de 'event_type' para 'eventType' (padrão camelCase)
-    eventType: Optional[str] = "evento-geral"
+    #eventType: Optional[str] = "evento-geral"
 
-class EventCreate(EventBase):
-    pass
+class EventCreate(BaseModel):
+    title: str
+    date: date
+    hora: Optional[str] = None
+    description: Optional[str] = None
+    local: Optional[str] = None
+    academicGroupId: Optional[str] = None
 
 class EventUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    # CORREÇÃO: Trocado 'start_time' e 'end_time' por 'timestamp' para consistência.
     timestamp: Optional[datetime] = None
     academicGroupId: Optional[str] = None
-    eventType: Optional[str] = None
+    #eventType: Optional[str] = None
 
 class EventResponse(EventBase):
     id: int

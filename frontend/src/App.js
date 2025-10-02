@@ -1,28 +1,43 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Calendario from './components';
-import Login from './pages/login/Login.tsx';
-import ProfileSelection from './pages/login/ProfileSelection.tsx';
-import LoginForm from './pages/login/LoginForm.tsx';
-import CadastroForm from './pages/cadastro/CadastroForm.tsx';
-import DashboardAluno from './pages/dashboard/DashboardAluno.tsx';
+import React, { useState, useEffect } from "react";
+import Calendario from "./components/calendario";
+import Login from "./components/login";
+import { isAuthenticated } from "./services/api";
 
 function App() {
-  return (
-    <Router>
-      <div className="App">
-        <Routes>
-          {/*<Route path="/" element={<Login />} />*/} //Comentar o calendario e descomentar aqui para login
-          <Route path="/" element={<Calendario />} />
-          <Route path="/profile-selection" element={<ProfileSelection />} />
-          <Route path="/login-form" element={<LoginForm />} />
-          <Route path="/cadastro-form" element={<CadastroForm />} />
-          <Route path="/dashboard-aluno" element={<DashboardAluno />} />
-          <Route path="/dashboard-professor" element={<LoginForm />} />
-          <Route path="/dashboard-coordenacao" element={<LoginForm />} />
-          <Route path="/calendario" element={<Calendario />} />
-        </Routes>
+  const [authenticated, setAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setAuthenticated(isAuthenticated());
+    setLoading(false);
+  }, []);
+
+  const handleLoginSuccess = () => {
+    setAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setAuthenticated(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Carregando...</span>
+        </div>
       </div>
-    </Router>
+    );
+  }
+
+  return (
+    <div className="App">
+      {authenticated ? (
+        <Calendario onLogout={handleLogout} />
+      ) : (
+        <Login onLoginSuccess={handleLoginSuccess} />
+      )}
+    </div>
   );
 }
 

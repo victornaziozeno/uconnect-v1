@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Fullcalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -9,10 +9,10 @@ import { Tooltip, Modal } from "bootstrap";
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import "./styles/calendario.css";
+import "../styles/calendario.css";
 
-// URL da API 
-const API_URL = process.env.REACT_APP_API_URL || "";
+// URL da API
+const API_URL = "http://localhost:8000";
 
 // --- util: data local yyyy-mm-dd (sem UTC) ---
 const dataLocalYYYYMMDD = (d = new Date()) => {
@@ -24,17 +24,9 @@ const dataLocalYYYYMMDD = (d = new Date()) => {
 };
 
 function Calendario() {
-  // Cores por tipo
-  const coresPorTipo = {
-    Aula: "#1E90FF",
-    Prova: "#FF8C00",
-    Entrega: "#28A745",
-    "Evento Geral": "#6C757D",
-  };
-
   const HOJE = dataLocalYYYYMMDD();
 
-  // Eventos 
+  // Eventos
   const [eventos, setEventos] = useState([]);
 
   // Agenda do dia
@@ -47,7 +39,7 @@ function Calendario() {
   useEffect(() => {
     const fetchEventos = async () => {
       try {
-        const resp = await fetch(`${API_URL}/eventos`);
+        const resp = await fetch(`${API_URL}/events`);
         if (!resp.ok) throw new Error("Erro ao buscar eventos");
         const data = await resp.json();
         setEventos(data);
@@ -67,7 +59,6 @@ function Calendario() {
     fim: "",
     descricao: "",
     local: "",
-    tipo: "Evento Geral",
   });
 
   const [modoEdicao, setModoEdicao] = useState(false);
@@ -81,48 +72,68 @@ function Calendario() {
       fim: "",
       descricao: "",
       local: "",
-      tipo: "Evento Geral",
     });
     setModoEdicao(false);
   };
 
   // Criar
   const adicionarEvento = async () => {
-    if (!formulario.titulo || !formulario.data) {
-      alert("Preencha pelo menos o título e a data!");
-      return;
-    }
-    const novoEvento = {
-      title: formulario.titulo,
-      date: formulario.data,
-      hora: formulario.inicio
-        ? formulario.fim
-          ? `${formulario.inicio} - ${formulario.fim}`
-          : formulario.inicio
-        : "",
-      descricao: formulario.descricao,
-      local: formulario.local,
-      tipo: formulario.tipo,
-    };
+  if (!formulario.titulo || !formulario.data) {
+    alert("Preencha pelo menos o título e a data!");
+    return;
+  }
 
-    try {
-      const resp = await fetch(`${API_URL}/eventos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(novoEvento),
-      });
-      if (!resp.ok) throw new Error("Erro ao salvar evento");
-      const saved = await resp.json();
-      setEventos((prev) => [...prev, saved]);
-    } catch (err) {
-      console.error("Erro ao adicionar evento:", err);
-    }
+  const token = localStorage.getItem("accessToken");
+  if (!token) {
+    alert("Sessão expirada ou usuário não logado. Faça o login novamente.");
+    return;
+  }
 
-    resetarFormulario();
+  const novoEvento = {
+    title: formulario.titulo,
+    date: formulario.data,
+    hora: formulario.inicio ? (formulario.fim ? `${formulario.inicio} - ${formulario.fim}` : formulario.inicio) : null,
+    description: formulario.descricao, 
+    local: formulario.local,
   };
+
+  // Log para depuração, agora dentro da função
+  console.log("Enviando para a API:", novoEvento);
+
+  try {
+    const resp = await fetch(`${API_URL}/events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(novoEvento),
+    });
+
+    if (!resp.ok) {
+      const errorData = await resp.json().catch(() => ({ detail: "Erro desconhecido, resposta não é JSON." }));
+      throw new Error(errorData.detail || `Erro ${resp.status}`);
+    }
+
+    const saved = await resp.json();
+    setEventos((prev) => [...prev, saved]);
+    resetarFormulario();
+
+  } catch (err) {
+    console.error("Erro ao adicionar evento:", err);
+    alert(`Não foi possível criar o evento: ${err.message}`);
+  }
+};
 
   // Editar
   const salvarEdicao = async () => {
+
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      alert("Sessão expirada ou usuário não logado. Faça o login novamente.");
+      return;
+    }
+
     const atualizado = {
       title: formulario.titulo,
       date: formulario.data,
@@ -133,13 +144,15 @@ function Calendario() {
         : "",
       descricao: formulario.descricao,
       local: formulario.local,
-      tipo: formulario.tipo,
     };
 
     try {
-      await fetch(`${API_URL}/eventos/${formulario.id}`, {
+      await fetch(`${API_URL}/events/${formulario.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(atualizado),
       });
       setEventos((prev) =>
@@ -156,24 +169,41 @@ function Calendario() {
 
   // Excluir
   const excluirEvento = async () => {
-    if (window.confirm("Tem certeza que deseja excluir este evento?")) {
-      try {
-        await fetch(`${API_URL}/eventos/${formulario.id}`, { method: "DELETE" });
-        setEventos((prev) => prev.filter((ev) => ev.id !== formulario.id));
-      } catch (err) {
-        console.error("Erro ao excluir evento:", err);
-      }
-      resetarFormulario();
-    }
-  };
+  const token = localStorage.getItem("accessToken");
+  if (!token) {
+    alert("Sessão expirada ou usuário não logado. Faça o login novamente.");
+    return;
+  }
 
+  if (window.confirm("Tem certeza que deseja excluir este evento?")) {
+    try {
+      const resp = await fetch(`${API_URL}/events/${formulario.id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({ detail: "Erro desconhecido ao excluir." }));
+        throw new Error(errorData.detail || `Erro ${resp.status}`);
+      }
+
+      setEventos((prev) => prev.filter((ev) => ev.id !== formulario.id));
+      resetarFormulario();
+      
+    } catch (err) {
+      console.error("Erro ao excluir evento:", err);
+      alert(`Não foi possível excluir o evento: ${err.message}`);
+    }
+  }
+};
   // Tooltip
   const buildTooltipHtml = (ev) => {
     return `
       <b>${ev.title}</b><br/>
       ${ev.hora ? "Horário: " + ev.hora + "<br/>" : ""}
       ${ev.local ? "Local: " + ev.local + "<br/>" : ""}
-      ${ev.tipo ? "Tipo: " + ev.tipo + "<br/>" : ""}
       ${ev.descricao ? "Descrição: " + ev.descricao : ""}
     `;
   };
@@ -208,28 +238,38 @@ function Calendario() {
                   right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
                 }}
                 views={{ dayGridMonth: { displayEventTime: false } }}
-                events={eventos.map((ev) => {
-                  const [inicio, fim] = ev.hora?.includes("-")
-                    ? ev.hora.split(" - ")
-                    : [ev.hora, null];
+                events={eventos
+    .map((ev) => {
+      console.log(`Processando evento ID ${ev.id} com timestamp:`, ev.timestamp);
 
-                  const cor = coresPorTipo[ev.tipo] || "#6C757D";
+      if (!ev.timestamp) {
+        console.error("EVENTO IGNORADO: Timestamp nulo ou indefinido para o evento:", ev);
+        return null;
+      }
+      
+      const startDateTime = new Date(ev.timestamp);
+
+      if (isNaN(startDateTime.getTime())) {
+        console.error("EVENTO IGNORADO: Timestamp inválido detectado para o evento:", ev);
+        return null; 
+      }
+
+      const dateStr = startDateTime.toISOString().split("T")[0];
+      const timeStr = startDateTime.toTimeString().substring(0, 5);
 
                   return {
                     id: ev.id?.toString(),
                     title: ev.title,
-                    start: inicio ? `${ev.date}T${inicio}` : ev.date,
-                    end: fim ? `${ev.date}T${fim}` : undefined,
+                    start: `${dateStr}T${timeStr}`,
                     allDay: false,
-                    backgroundColor: cor,
+                    backgroundColor: "#1E90FF",
                     textColor: "#fff",
-                    borderColor: cor,
+                    borderColor: "#1E90FF",
                     display: "block",
                     extendedProps: {
-                      hora: ev.hora,
-                      descricao: ev.descricao,
-                      local: ev.local,
-                      tipo: ev.tipo,
+                      hora: timeStr,
+                      descricao: ev.description,
+                      local: ev.local, 
                     },
                   };
                 })}
@@ -239,7 +279,6 @@ function Calendario() {
                     title: info.event.title,
                     hora: props.hora,
                     local: props.local,
-                    tipo: props.tipo,
                     descricao: props.descricao,
                   };
                   const html = buildTooltipHtml(current);
@@ -269,7 +308,6 @@ function Calendario() {
                     fim: props.hora?.split(" - ")[1] || "",
                     descricao: props.descricao || "",
                     local: props.local || "",
-                    tipo: props.tipo || "Evento Geral",
                   });
                   setModoEdicao(true);
                   const modalEl = document.getElementById("modalEvento");
@@ -296,9 +334,6 @@ function Calendario() {
                     {ev.local && (
                       <small className="d-block text-muted">📍 {ev.local}</small>
                     )}
-                    <span style={{ color: coresPorTipo[ev.tipo], fontSize: "0.9em" }}>
-                      {ev.tipo}
-                    </span>
                     {ev.descricao && <p className="text-muted mb-0">{ev.descricao}</p>}
                   </div>
                 ))
@@ -401,21 +436,6 @@ function Calendario() {
                     setFormulario({ ...formulario, descricao: e.target.value })
                   }
                 />
-              </div>
-              <div className="mb-3">
-                <label className="form-label">Tipo</label>
-                <select
-                  className="form-select"
-                  value={formulario.tipo}
-                  onChange={(e) =>
-                    setFormulario({ ...formulario, tipo: e.target.value })
-                  }
-                >
-                  <option>Aula</option>
-                  <option>Prova</option>
-                  <option>Entrega</option>
-                  <option>Evento Geral</option>
-                </select>
               </div>
             </div>
             <div className="modal-footer">
