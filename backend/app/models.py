@@ -11,7 +11,6 @@ class UserRole(str, enum.Enum):
     student = "student"
     teacher = "teacher"
     coordinator = "coordinator"
-    contractor = "contract"
     admin = "admin"
 
 class AccessStatus(str, enum.Enum):
