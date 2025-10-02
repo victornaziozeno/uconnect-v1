@@ -7,8 +7,7 @@ from datetime import datetime
 router = APIRouter(prefix="/users", tags=["users"])
 
 @router.post("/", response_model=schemas.UserResponse)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db),
-                current_user: models.User = Depends(utils.require_roles(["admin", "contract"]))):
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(models.User).filter(models.User.registration == user.registration).first()
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Usuário já cadastrado")
