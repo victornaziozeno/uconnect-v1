@@ -1,9 +1,9 @@
 const API_URL = "http://localhost:8000";
 
 // Gerenciamento de token
-const getToken = () => localStorage.getItem("access_token");
-const setToken = (token) => localStorage.setItem("access_token", token);
-const removeToken = () => localStorage.removeItem("access_token");
+const getToken = () => sessionStorage.getItem("access_token");
+const setToken = (token) => sessionStorage.setItem("access_token", token);
+const removeToken = () => sessionStorage.removeItem("access_token");
 
 // Headers padrão com autenticação
 const getHeaders = (includeAuth = true) => {
@@ -27,7 +27,10 @@ const handleResponse = async (response) => {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || `Erro HTTP ${response.status}`);
   }
-  return response.json();
+  if (response.status !== 204) {
+      return response.json();
+  }
+  return null;
 };
 
 // ==================== AUTENTICAÇÃO ====================

@@ -35,7 +35,7 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 # Lista todos os usuários.
-# Requer usuário perfil específico.
+# Requer perfil de administrador.
 @router.get("/", response_model=list[schemas.UserResponse])
 def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
                current_user: models.User = Depends(utils.require_roles(["admin"]))):
@@ -68,7 +68,7 @@ def update_profile(user_update: schemas.UserUpdate, db: Session = Depends(get_db
     return current_user
 
 # Atualizar outros usuários.
-# Requer usuário perfil específico.
+# Requer perfil de administrador.
 @router.put("/{user_id}", response_model=schemas.UserResponse)
 def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db),
                 current_user: models.User = Depends(utils.require_roles(["admin"]))):
@@ -89,7 +89,7 @@ def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Dep
     return db_user
 
 # Deletar um usuário.
-# Requer usuário perfil específico.
+# Requer perfil de administrador.
 @router.delete("/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db),
                 current_user: models.User = Depends(utils.require_roles(["admin"]))):
@@ -107,3 +107,53 @@ def delete_user(user_id: int, db: Session = Depends(get_db),
     db.delete(db_user)
     db.commit()
     return {"message": "Usuário deletado com sucesso"}
+
+# Atualizar o status de acesso de um usuário (active, inactive, suspended).
+# Requer perfil de administrador.
+@router.patch("/{user_id}/status", response_model=schemas.UserResponse)
+def update_user_status(user_id: int, status_update: schemas.UserStatusUpdate, db: Session = Depends(get_db),
+                       current_user: models.User = Depends(utils.require_roles(["admin"]))): # <<< CORREÇÃO AQUI
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    if db_user.id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Não é permitido alterar o próprio status por esta rota.")
+
+    db_user.accessStatus = status_update.accessStatus
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+# Atualizar o perfil (role) de um usuário.
+# Requer perfil de administrador ou coordenador.
+@router.patch("/{user_id}/role", response_model=schemas.UserResponse)
+def update_user_role(user_id: int, role_update: schemas.UserRoleUpdate, db: Session = Depends(get_db),
+                     current_user: models.User = Depends(utils.require_roles(["admin", "coordinator"]))): # <<< CORREÇÃO AQUI
+
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    
+    if db_user.id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Não é permitido alterar o próprio papel.")
+    if db_user.role == models.UserRole.admin: # Usar o Enum é mais seguro que a string 'admin'
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Não é permitido alterar o papel de um administrador.")
+
+    # Valida a lista completa de papéis
+    valid_roles = [role.value for role in models.UserRole]
+    if role_update.role not in valid_roles:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"O papel '{role_update.role}' não é válido.")
+
+    if current_user.role == models.UserRole.coordinator:
+        if role_update.role in [models.UserRole.admin.value, models.UserRole.coordinator.value]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Coordenadores não têm permissão para atribuir papéis de administrador ou coordenador."
+            )
+    
+    db_user.role = role_update.role
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+    

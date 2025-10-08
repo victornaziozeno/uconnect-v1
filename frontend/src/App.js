@@ -1,22 +1,35 @@
 import React, { useState, useEffect } from "react";
 import Calendario from "./components/calendario";
 import Login from "./components/login";
-import { isAuthenticated } from "./services/api";
+import { validateSession, logout as apiLogout } from "./services/api";
 
 function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setAuthenticated(isAuthenticated());
-    setLoading(false);
-  }, []);
+    const checkAuthStatus = async () => {
+      try {
+      
+        await validateSession();
+        setAuthenticated(true);
+      } catch (error) {
+        console.error("Sessão inválida ou expirada.");
+        setAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuthStatus();
+  }, []); 
 
   const handleLoginSuccess = () => {
     setAuthenticated(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await apiLogout();
     setAuthenticated(false);
   };
 
