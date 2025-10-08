@@ -23,6 +23,12 @@ const dataLocalYYYYMMDD = (d = new Date()) => {
   return `${y}-${m}-${day}`;
 };
 
+// Função para formatar YYYY-MM-DD para DD/MM/YYYY
+const formatarDataBR = (dataString) => {
+  const [ano, mes, dia] = dataString.split("-");
+  return `${dia}/${mes}/${ano}`;
+};
+
 function Calendario() {
   const HOJE = dataLocalYYYYMMDD();
 
@@ -42,7 +48,28 @@ function Calendario() {
         const resp = await fetch(`${API_URL}/events`);
         if (!resp.ok) throw new Error("Erro ao buscar eventos");
         const data = await resp.json();
-        setEventos(data);
+        
+        // Converter eventos do backend
+        const eventosConvertidos = data.map(ev => ({
+          id: ev.id,
+          title: ev.title,
+          date: ev.eventDate,
+          timestamp: ev.timestamp,
+          startTime: ev.startTime ? ev.startTime.substring(0, 5) : "",
+          endTime: ev.endTime ? ev.endTime.substring(0, 5) : "",
+          hora: ev.startTime 
+            ? (ev.endTime 
+                ? `${ev.startTime.substring(0, 5)} - ${ev.endTime.substring(0, 5)}`
+                : ev.startTime.substring(0, 5))
+            : "",
+          description: ev.description || "",
+          descricao: ev.description || "",
+          local: ev.academicGroupId || "",
+          academicGroupId: ev.academicGroupId || "",
+        }));
+        
+        console.log("Eventos convertidos:", eventosConvertidos);
+        setEventos(eventosConvertidos);
       } catch (err) {
         console.error("Erro ao buscar eventos:", err);
       }
@@ -78,56 +105,80 @@ function Calendario() {
 
   // Criar
   const adicionarEvento = async () => {
-  if (!formulario.titulo || !formulario.data) {
-    alert("Preencha pelo menos o título e a data!");
-    return;
-  }
-
-  const token = localStorage.getItem("accessToken");
-  if (!token) {
-    alert("Sessão expirada ou usuário não logado. Faça o login novamente.");
-    return;
-  }
-
-  const novoEvento = {
-    title: formulario.titulo,
-    date: formulario.data,
-    hora: formulario.inicio ? (formulario.fim ? `${formulario.inicio} - ${formulario.fim}` : formulario.inicio) : null,
-    description: formulario.descricao, 
-    local: formulario.local,
-  };
-
-  // Log para depuração, agora dentro da função
-  console.log("Enviando para a API:", novoEvento);
-
-  try {
-    const resp = await fetch(`${API_URL}/events`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(novoEvento),
-    });
-
-    if (!resp.ok) {
-      const errorData = await resp.json().catch(() => ({ detail: "Erro desconhecido, resposta não é JSON." }));
-      throw new Error(errorData.detail || `Erro ${resp.status}`);
+    if (!formulario.titulo || !formulario.data) {
+      alert("Preencha pelo menos o título e a data!");
+      return;
     }
 
-    const saved = await resp.json();
-    setEventos((prev) => [...prev, saved]);
-    resetarFormulario();
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      alert("Sessão expirada ou usuário não logado. Faça o login novamente.");
+      return;
+    }
 
-  } catch (err) {
-    console.error("Erro ao adicionar evento:", err);
-    alert(`Não foi possível criar o evento: ${err.message}`);
-  }
-};
+    const novoEvento = {
+      title: formulario.titulo,
+      date: formulario.data,
+      hora: formulario.inicio
+        ? formulario.fim
+          ? `${formulario.inicio} - ${formulario.fim}`
+          : formulario.inicio
+        : null,
+      description: formulario.descricao,
+      local: formulario.local,
+    };
+
+    console.log("Enviando para a API:", novoEvento);
+
+    try {
+      const resp = await fetch(`${API_URL}/events`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(novoEvento),
+      });
+
+      if (!resp.ok) {
+        const errorData = await resp
+          .json()
+          .catch(() => ({ detail: "Erro desconhecido, resposta não é JSON." }));
+        throw new Error(errorData.detail || `Erro ${resp.status}`);
+      }
+
+      const saved = await resp.json();
+      console.log("Evento criado:", saved);
+      
+      // Converter evento recebido do backend
+      const eventoConvertido = {
+        id: saved.id,
+        title: saved.title,
+        date: saved.eventDate,
+        timestamp: saved.timestamp,
+        startTime: saved.startTime ? saved.startTime.substring(0, 5) : "",
+        endTime: saved.endTime ? saved.endTime.substring(0, 5) : "",
+        hora: saved.startTime 
+          ? (saved.endTime 
+              ? `${saved.startTime.substring(0, 5)} - ${saved.endTime.substring(0, 5)}`
+              : saved.startTime.substring(0, 5))
+          : "",
+        description: saved.description || "",
+        descricao: saved.description || "",
+        local: saved.academicGroupId || "",
+        academicGroupId: saved.academicGroupId || "",
+      };
+      
+      setEventos((prev) => [...prev, eventoConvertido]);
+      resetarFormulario();
+    } catch (err) {
+      console.error("Erro ao adicionar evento:", err);
+      alert(`Não foi possível criar o evento: ${err.message}`);
+    }
+  };
 
   // Editar
   const salvarEdicao = async () => {
-
     const token = localStorage.getItem("accessToken");
     if (!token) {
       alert("Sessão expirada ou usuário não logado. Faça o login novamente.");
@@ -142,12 +193,14 @@ function Calendario() {
           ? `${formulario.inicio} - ${formulario.fim}`
           : formulario.inicio
         : "",
-      descricao: formulario.descricao,
+      description: formulario.descricao,
       local: formulario.local,
     };
 
+    console.log("Enviando atualização:", atualizado);
+
     try {
-      await fetch(`${API_URL}/events/${formulario.id}`, {
+      const resp = await fetch(`${API_URL}/events/${formulario.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -155,49 +208,79 @@ function Calendario() {
         },
         body: JSON.stringify(atualizado),
       });
+
+      if (!resp.ok) {
+        const errorData = await resp
+          .json()
+          .catch(() => ({ detail: "Erro desconhecido." }));
+        throw new Error(errorData.detail || `Erro ${resp.status}`);
+      }
+
+      const saved = await resp.json();
+      console.log("Evento atualizado:", saved);
+
+      // Converter evento recebido do backend
+      const eventoConvertido = {
+        id: saved.id,
+        title: saved.title,
+        date: saved.eventDate,
+        timestamp: saved.timestamp,
+        startTime: saved.startTime ? saved.startTime.substring(0, 5) : "",
+        endTime: saved.endTime ? saved.endTime.substring(0, 5) : "",
+        hora: saved.startTime 
+          ? (saved.endTime 
+              ? `${saved.startTime.substring(0, 5)} - ${saved.endTime.substring(0, 5)}`
+              : saved.startTime.substring(0, 5))
+          : "",
+        description: saved.description || "",
+        descricao: saved.description || "",
+        local: saved.academicGroupId || "",
+        academicGroupId: saved.academicGroupId || "",
+      };
+
       setEventos((prev) =>
-        prev.map((ev) =>
-          ev.id === formulario.id ? { ...ev, ...atualizado } : ev
-        )
+        prev.map((ev) => (ev.id === formulario.id ? eventoConvertido : ev))
       );
+      resetarFormulario();
     } catch (err) {
       console.error("Erro ao editar evento:", err);
+      alert(`Não foi possível editar o evento: ${err.message}`);
     }
-
-    resetarFormulario();
   };
 
   // Excluir
   const excluirEvento = async () => {
-  const token = localStorage.getItem("accessToken");
-  if (!token) {
-    alert("Sessão expirada ou usuário não logado. Faça o login novamente.");
-    return;
-  }
-
-  if (window.confirm("Tem certeza que deseja excluir este evento?")) {
-    try {
-      const resp = await fetch(`${API_URL}/events/${formulario.id}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({ detail: "Erro desconhecido ao excluir." }));
-        throw new Error(errorData.detail || `Erro ${resp.status}`);
-      }
-
-      setEventos((prev) => prev.filter((ev) => ev.id !== formulario.id));
-      resetarFormulario();
-      
-    } catch (err) {
-      console.error("Erro ao excluir evento:", err);
-      alert(`Não foi possível excluir o evento: ${err.message}`);
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      alert("Sessão expirada ou usuário não logado. Faça o login novamente.");
+      return;
     }
-  }
-};
+
+    if (window.confirm("Tem certeza que deseja excluir este evento?")) {
+      try {
+        const resp = await fetch(`${API_URL}/events/${formulario.id}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!resp.ok) {
+          const errorData = await resp
+            .json()
+            .catch(() => ({ detail: "Erro desconhecido ao excluir." }));
+          throw new Error(errorData.detail || `Erro ${resp.status}`);
+        }
+
+        setEventos((prev) => prev.filter((ev) => ev.id !== formulario.id));
+        resetarFormulario();
+      } catch (err) {
+        console.error("Erro ao excluir evento:", err);
+        alert(`Não foi possível excluir o evento: ${err.message}`);
+      }
+    }
+  };
+
   // Tooltip
   const buildTooltipHtml = (ev) => {
     return `
@@ -228,7 +311,12 @@ function Calendario() {
               </div>
 
               <Fullcalendar
-                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
+                plugins={[
+                  dayGridPlugin,
+                  timeGridPlugin,
+                  interactionPlugin,
+                  listPlugin,
+                ]}
                 initialView="dayGridMonth"
                 locale={ptBr}
                 height="600px"
@@ -239,40 +327,45 @@ function Calendario() {
                 }}
                 views={{ dayGridMonth: { displayEventTime: false } }}
                 events={eventos
-    .map((ev) => {
-      console.log(`Processando evento ID ${ev.id} com timestamp:`, ev.timestamp);
+                  .map((ev) => {
+                    console.log("Processando evento:", ev);
 
-      if (!ev.timestamp) {
-        console.error("EVENTO IGNORADO: Timestamp nulo ou indefinido para o evento:", ev);
-        return null;
-      }
-      
-      const startDateTime = new Date(ev.timestamp);
+                    if (!ev.timestamp) {
+                      console.error("Evento sem timestamp:", ev);
+                      return null;
+                    }
 
-      if (isNaN(startDateTime.getTime())) {
-        console.error("EVENTO IGNORADO: Timestamp inválido detectado para o evento:", ev);
-        return null; 
-      }
+                    const startDateTime = new Date(ev.timestamp);
 
-      const dateStr = startDateTime.toISOString().split("T")[0];
-      const timeStr = startDateTime.toTimeString().substring(0, 5);
+                    if (isNaN(startDateTime.getTime())) {
+                      console.error("Timestamp inválido:", ev);
+                      return null;
+                    }
 
-                  return {
-                    id: ev.id?.toString(),
-                    title: ev.title,
-                    start: `${dateStr}T${timeStr}`,
-                    allDay: false,
-                    backgroundColor: "#1E90FF",
-                    textColor: "#fff",
-                    borderColor: "#1E90FF",
-                    display: "block",
-                    extendedProps: {
-                      hora: timeStr,
-                      descricao: ev.description,
-                      local: ev.local, 
-                    },
-                  };
-                })}
+                    const dateStr = ev.date;
+                    const timeStr = ev.startTime || "00:00";
+
+                    return {
+                      id: ev.id?.toString(),
+                      title: ev.title,
+                      start: `${dateStr}T${timeStr}`,
+                      allDay: false,
+                      backgroundColor: "#1E90FF",
+                      textColor: "#fff",
+                      borderColor: "#1E90FF",
+                      display: "block",
+                      extendedProps: {
+                        startTime: ev.startTime,
+                        endTime: ev.endTime,
+                        hora: ev.hora,
+                        description: ev.description,
+                        descricao: ev.descricao,
+                        local: ev.local,
+                        academicGroupId: ev.academicGroupId,
+                      },
+                    };
+                  })
+                  .filter((ev) => ev !== null)}
                 eventMouseEnter={(info) => {
                   const props = info.event.extendedProps;
                   const current = {
@@ -300,12 +393,19 @@ function Calendario() {
                 eventClick={(info) => {
                   const ev = info.event;
                   const props = ev.extendedProps;
+
+                  console.log("Evento clicado:", {
+                    id: ev.id,
+                    startTime: props.startTime,
+                    endTime: props.endTime,
+                  });
+
                   setFormulario({
                     id: parseInt(ev.id, 10),
                     titulo: ev.title,
                     data: ev.startStr.split("T")[0],
-                    inicio: props.hora?.split(" - ")[0] || "",
-                    fim: props.hora?.split(" - ")[1] || "",
+                    inicio: props.startTime || "",
+                    fim: props.endTime || "",
                     descricao: props.descricao || "",
                     local: props.local || "",
                   });
@@ -322,9 +422,9 @@ function Calendario() {
         {/* Agenda do Dia */}
         <div className="col-md-4">
           <div className="agenda-card">
-            <div className="agenda-header">
-              Agenda do Dia ({new Date(HOJE).toLocaleDateString("pt-BR")})
-            </div>
+           <div className="agenda-header">
+            Agenda do Dia ({formatarDataBR(HOJE)})
+          </div>
             <div className="agenda-list">
               {agenda.length > 0 ? (
                 agenda.map((ev) => (
@@ -334,7 +434,9 @@ function Calendario() {
                     {ev.local && (
                       <small className="d-block text-muted">📍 {ev.local}</small>
                     )}
-                    {ev.descricao && <p className="text-muted mb-0">{ev.descricao}</p>}
+                    {ev.descricao && (
+                      <p className="text-muted mb-0">{ev.descricao}</p>
+                    )}
                   </div>
                 ))
               ) : (

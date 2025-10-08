@@ -94,45 +94,53 @@ export const updateProfile = async (userData) => {
 
 // Converter formato frontend -> backend
 const eventToBackend = (event) => {
-  // Separar hora se existir
-  let timestamp;
-  if (event.hora && event.hora.includes(":")) {
-    const horaInicio = event.hora.split(" - ")[0] || event.hora;
-    timestamp = `${event.date}T${horaInicio}:00`;
-  } else {
-    timestamp = `${event.date}T00:00:00`;
-  }
-  
   return {
     title: event.title || event.titulo,
-    description: event.descricao || "",
-    timestamp: timestamp,
-    academicGroupId: event.local || null,
-    // Nota: eventType não existe no modelo, mas está no schema
-    // Se o backend aceitar, envie. Caso contrário, remova esta linha.
+    date: event.date,
+    hora: event.hora || null,
+    description: event.descricao || event.description || "",
+    local: event.local || null,
+    academicGroupId: event.academicGroupId || event.local || null,
   };
 };
 
 // Converter formato backend -> frontend
 const eventFromBackend = (event) => {
-  const date = event.timestamp.split("T")[0];
-  const time = event.timestamp.split("T")[1]?.substring(0, 5) || "";
+  // Formatar hora (startTime e endTime vêm como "HH:MM:SS" do banco)
+  let horaStr = "";
+  let startTimeStr = "";
+  let endTimeStr = "";
+  
+  if (event.startTime) {
+    // Remover segundos se vier no formato HH:MM:SS
+    startTimeStr = event.startTime.substring(0, 5);
+    horaStr = startTimeStr;
+    
+    if (event.endTime) {
+      endTimeStr = event.endTime.substring(0, 5);
+      horaStr += ` - ${endTimeStr}`;
+    }
+  }
   
   return {
     id: event.id,
     title: event.title,
-    date: date,
-    hora: time || "",
+    date: event.eventDate,
+    timestamp: event.timestamp,
+    hora: horaStr,
+    startTime: startTimeStr,
+    endTime: endTimeStr,
+    description: event.description || "",
     descricao: event.description || "",
     local: event.academicGroupId || "",
-    //tipo: "Evento Geral", // Valor padrão já que não existe no backend
+    academicGroupId: event.academicGroupId || "",
   };
 };
 
 export const getEvents = async () => {
   const response = await fetch(`${API_URL}/events`, {
     method: "GET",
-    headers: { "Content-Type": "application/json" }, // Público, sem auth
+    headers: { "Content-Type": "application/json" },
   });
   
   const data = await handleResponse(response);
