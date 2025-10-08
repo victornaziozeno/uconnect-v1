@@ -1,125 +1,143 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from datetime import datetime, date, time
-from typing import Optional, List
-from .models import UserRole, AccessStatus 
+# ---------------- MODELOS DO BANCO DE DADOS (SCHEMA) ---------------- #
+"""
+Este arquivo, models.py, define todo o schema do banco de dados da aplicação
+utilizando o ORM (Object-Relational Mapper) do SQLAlchemy.
 
-# ---------------- AUTHENTICATION SCHEMAS ---------------- #
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    expires_at: datetime
+Cada classe neste arquivo representa uma tabela no banco de dados, e os
+atributos da classe são mapeados para as colunas da tabela. O arquivo também
+estabelece os relacionamentos entre as tabelas (ex: um usuário pode criar
+vários eventos), define tipos de dados customizados com Enums (como papéis
+e status de acesso) e configura tabelas de associação para relacionamentos
+muitos-para-muitos.
+"""
+from datetime import datetime
+from sqlalchemy import (Boolean, Column, Integer, String, DateTime, Date,
+                        Enum, ForeignKey, Text, Index, Time, Table)
+from sqlalchemy.orm import relationship
+import enum
+from .db import Base
 
-class TokenData(BaseModel):
-    registration: Optional[str] = None
+# --- ENUMS (Tipos de Dados Personalizados) ---
+# Define classes Enum para garantir que campos como `role` e `accessStatus`
+# só possam receber valores pré-definidos, aumentando a integridade dos dados.
+class UserRole(str, enum.Enum):
+    student = "student"
+    teacher = "teacher"
+    coordinator = "coordinator"
+    admin = "admin"
 
-class UserLogin(BaseModel):
-    registration: str
-    password: str
+class AccessStatus(str, enum.Enum):
+    active = "active"
+    inactive = "inactive"
+    suspended = "suspended"
 
-# ---------------- USER SCHEMAS ---------------- #
-class UserBase(BaseModel):
-    registration: str
-    name: str
-    email: EmailStr
-    role: UserRole
+# --- Tabela de Associação (Muitos-para-Muitos) ---
+# `academic_group_user_association` é uma tabela auxiliar que mapeia o
+# relacionamento N-para-N entre Usuários (`User`) e Grupos Acadêmicos
+# (`AcademicGroup`), permitindo que um usuário esteja em vários grupos e
+# um grupo tenha vários usuários.
+academic_group_user_association = Table('AcademicGroup_User', Base.metadata,
+    Column('groupId', Integer, ForeignKey('AcademicGroup.id'), primary_key=True),
+    Column('userId', Integer, ForeignKey('User.id'), primary_key=True)
+)
 
-class UserCreate(UserBase):
-    password: str
+# --- Modelos de Autenticação e Acesso ---
 
-class UserResponse(UserBase):
-    id: int
-    accessStatus: AccessStatus
-    createdAt: datetime
-    
-    model_config = ConfigDict(from_attributes=True)
+# A classe `User` representa a tabela de usuários. É o modelo central para
+# autenticação, armazenando informações como matrícula, e-mail, senha (hash),
+# papel e status. Os `relationships` definem como um usuário se conecta a
+# outros modelos.
+class User(Base):
+    __tablename__ = "User"
 
-class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    accessStatus: Optional[AccessStatus] = None
+    id = Column(Integer, primary_key=True, index=True)
+    registration = Column(String(50), unique=True, index=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    email = Column(String(100), unique=True, index=True, nullable=False)
+    passwordHash = Column(String(255), nullable=False)
+    role = Column(Enum(UserRole), nullable=False)
+    accessStatus = Column(Enum(AccessStatus), default=AccessStatus.active, nullable=False)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-class UserStatusUpdate(BaseModel):
-    accessStatus: AccessStatus
+    events_created = relationship("Event", back_populates="creator")
+    groups = relationship(
+        "AcademicGroup",
+        secondary=academic_group_user_association,
+        back_populates="users"
+    )
+    posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
 
-class UserRoleUpdate(BaseModel):
-    role: str
+    __table_args__ = (
+        Index("ix_users_registration", "registration"),
+        Index("ix_users_email", "email"),
+    )
 
-# ---------------- CALENDAR SCHEMAS ---------------- #
-from datetime import time
+# A classe `Session` armazena os tokens de sessão gerados para os usuários
+# logados, relacionando um token a um ID de usuário e controlando sua expiração.
+class Session(Base):
+    __tablename__ = "Session"
 
-class EventBase(BaseModel):
-    title: str
-    description: Optional[str] = None
-    eventDate: date
-    startTime: Optional[time] = None
-    endTime: Optional[time] = None
-    academicGroupId: Optional[str] = None
+    token = Column(String(500), primary_key=True, index=True, nullable=False)
+    userId = Column(Integer, ForeignKey("User.id"), nullable=False, index=True)
+    startDate = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expirationDate = Column(DateTime, nullable=False)
 
-class EventCreate(BaseModel):
-    title: str
-    date: date  # Mantém compatibilidade com frontend
-    hora: Optional[str] = None  # Formato: "HH:MM" ou "HH:MM - HH:MM"
-    description: Optional[str] = None
-    local: Optional[str] = None
-    academicGroupId: Optional[str] = None
+    user = relationship("User", lazy="joined")
 
-class EventUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    eventDate: Optional[date] = None
-    startTime: Optional[time] = None
-    endTime: Optional[time] = None
-    academicGroupId: Optional[str] = None
+# --- Modelos de Gestão Acadêmica ---
 
-class EventResponse(BaseModel):
-    id: int
-    title: str
-    description: Optional[str] = None
-    timestamp: datetime
-    eventDate: date
-    startTime: Optional[str] = None  # Mudado para string
-    endTime: Optional[str] = None    # Mudado para string
-    academicGroupId: Optional[str] = None
-    creatorId: Optional[int] = None
-    
-    model_config = ConfigDict(from_attributes=True)
+# Representa a tabela de eventos. Armazena detalhes sobre cada evento, como
+# título, data, hora e o criador, com uma chave estrangeira para o modelo `User`.
+class Event(Base):
+    __tablename__ = "Event"
 
-# ---------------- GROUP SCHEMAS ---------------- #
-class AcademicGroupBase(BaseModel):
-    course: str
-    classGroup: str
-    subject: str
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    timestamp = Column(DateTime, nullable=False)
+    eventDate = Column(Date, nullable=False)
+    startTime = Column(Time, nullable=True)
+    endTime = Column(Time, nullable=True)
+    academicGroupId = Column(String(50), nullable=True)
+    creatorId = Column(Integer, ForeignKey("User.id", ondelete="SET NULL"), nullable=True)
 
-class AcademicGroupCreate(AcademicGroupBase):
-    pass
+    creator = relationship("User", back_populates="events_created")
 
-class AcademicGroupUpdate(AcademicGroupBase):
-    pass
+    __table_args__ = (
+        Index("idx_event_date", "eventDate"),
+        Index("idx_event_timestamp", "timestamp"),
+        Index("idx_event_creator", "creatorId"),
+    )
 
-class AcademicGroupResponse(AcademicGroupBase):
-    id: int
-    
-    model_config = ConfigDict(from_attributes=True)
+# Define um grupo acadêmico, geralmente representando uma turma de um curso e
+# disciplina específicos.
+class AcademicGroup(Base):
+    __tablename__ = "AcademicGroup"
 
-class AcademicGroupDetailResponse(AcademicGroupResponse):
-    users: List[UserResponse] = []
+    id = Column(Integer, primary_key=True, index=True)
+    course = Column(String(100), nullable=False)
+    classGroup = Column(String(50), nullable=False, unique=True, index=True)
+    subject = Column(String(100), nullable=False)
 
-# ---------------- PUBLICATION (POST) SCHEMAS ---------------- #
+    users = relationship(
+        "User",
+        secondary=academic_group_user_association,
+        back_populates="groups"
+    )
 
-class PostBase(BaseModel):
-    title: str = Field(..., min_length=3)
-    content: str = Field(..., min_length=3)
+# Representa as publicações (posts) feitas por usuários. Contém o conteúdo do
+# post e uma chave estrangeira que o vincula ao seu autor (`User`).
+# O `ondelete="CASCADE"` garante que os posts de um usuário sejam deletados
+# caso o próprio usuário seja removido.
+class Post(Base):
+    __tablename__ = "Post"
 
-class PostCreate(PostBase):
-    pass 
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    date = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-class PostUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=3)
-    content: Optional[str] = Field(None, min_length=3)
+    authorId = Column(Integer, ForeignKey("User.id", ondelete="CASCADE"), nullable=False)
 
-class PostResponse(PostBase):
-    id: int
-    date: datetime
-    author: UserResponse
-    
-    model_config = ConfigDict(from_attributes=True)
+    author = relationship("User", back_populates="posts")
