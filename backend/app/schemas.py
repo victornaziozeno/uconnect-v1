@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime, date, time
-from typing import Optional
+from typing import Optional, List
 from .models import UserRole, AccessStatus 
 
 # ---------------- AUTHENTICATION SCHEMAS ---------------- #
@@ -37,6 +37,12 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     accessStatus: Optional[AccessStatus] = None
+
+class UserStatusUpdate(BaseModel):
+    accessStatus: AccessStatus
+
+class UserRoleUpdate(BaseModel):
+    role: str
 
 # ---------------- CALENDAR SCHEMAS ---------------- #
 from datetime import time
@@ -75,5 +81,45 @@ class EventResponse(BaseModel):
     endTime: Optional[str] = None    # Mudado para string
     academicGroupId: Optional[str] = None
     creatorId: Optional[int] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+# ---------------- GROUP SCHEMAS ---------------- #
+class AcademicGroupBase(BaseModel):
+    course: str
+    classGroup: str
+    subject: str
+
+class AcademicGroupCreate(AcademicGroupBase):
+    pass
+
+class AcademicGroupUpdate(AcademicGroupBase):
+    pass
+
+class AcademicGroupResponse(AcademicGroupBase):
+    id: int
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class AcademicGroupDetailResponse(AcademicGroupResponse):
+    users: List[UserResponse] = []
+
+# ---------------- PUBLICATION (POST) SCHEMAS ---------------- #
+
+class PostBase(BaseModel):
+    title: str = Field(..., min_length=3)
+    content: str = Field(..., min_length=3)
+
+class PostCreate(PostBase):
+    pass 
+
+class PostUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=3)
+    content: Optional[str] = Field(None, min_length=3)
+
+class PostResponse(PostBase):
+    id: int
+    date: datetime
+    author: UserResponse
     
     model_config = ConfigDict(from_attributes=True)

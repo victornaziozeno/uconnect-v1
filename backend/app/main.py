@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, users, events
+from .routers import auth, users, events, groups, publications
 from .db import Base, engine
 
 # Cria as tabelas no banco de dados, se não existirem
@@ -15,8 +15,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# <-- CORREÇÃO: Unifique todas as origens permitidas em uma única lista -->
-# Usar um set {} primeiro ajuda a remover duplicatas automaticamente.
 origins = {
     "null",  # Essencial para testes abrindo o HTML localmente
     "http://127.0.0.1:5500", # Para o Live Server do VS Code
@@ -25,7 +23,6 @@ origins = {
     "http://localhost:3000", # Origem que estava no segundo bloco
 }
 
-# <-- CORREÇÃO: Adicione o CORSMiddleware APENAS UMA VEZ -->
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(origins),  # Converte o set de volta para uma lista
@@ -38,6 +35,9 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(events.router)
+
+app.include_router(groups.router)
+app.include_router(publications.router)
 
 # Rota principal
 @app.get("/")

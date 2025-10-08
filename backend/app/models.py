@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, DateTime, Date, Enum, ForeignKey, Text, Index, Time
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, Date, Enum, ForeignKey, Text, Index, Time, Table
 from sqlalchemy.orm import relationship
 import enum
 from datetime import datetime
@@ -16,6 +16,13 @@ class AccessStatus(str, enum.Enum):
     inactive = "inactive"
     suspended = "suspended"
 
+# ---------------- TABELA DE ASSOCIAÇÃO ---------------- #
+
+academic_group_user_association = Table('AcademicGroup_User', Base.metadata,
+    Column('groupId', Integer, ForeignKey('AcademicGroup.id'), primary_key=True),
+    Column('userId', Integer, ForeignKey('User.id'), primary_key=True)
+)
+
 # ---------------- AUTHENTICATION & ACCESS ---------------- #
 class User(Base):
     __tablename__ = "User"
@@ -31,6 +38,12 @@ class User(Base):
     updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     events_created = relationship("Event", back_populates="creator")
+    groups = relationship(
+        "AcademicGroup",
+        secondary=academic_group_user_association,
+        back_populates="users"
+    )
+    posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_users_registration", "registration"),
@@ -54,13 +67,10 @@ class Event(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    
-    # Nova estrutura de data e horários (usando String para horários)
-    timestamp = Column(DateTime, nullable=False)  # Data e hora completa para auditoria/ordenação
-    eventDate = Column(Date, nullable=False)  # Data do evento
+    timestamp = Column(DateTime, nullable=False)  
+    eventDate = Column(Date, nullable=False)  
     startTime = Column(Time, nullable=True)
     endTime = Column(Time, nullable=True)
-
     academicGroupId = Column(String(50), nullable=True)
     creatorId = Column(Integer, ForeignKey("User.id", ondelete="SET NULL"), nullable=True)
     
@@ -71,3 +81,29 @@ class Event(Base):
         Index("idx_event_timestamp", "timestamp"),
         Index("idx_event_creator", "creatorId"),
     )
+
+class AcademicGroup(Base):
+    __tablename__ = "AcademicGroup"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course = Column(String(100), nullable=False)
+    classGroup = Column(String(50), nullable=False, unique=True, index=True) 
+    subject = Column(String(100), nullable=False) 
+
+    users = relationship(
+        "User",
+        secondary=academic_group_user_association, 
+        back_populates="groups"
+    )
+
+class Post(Base):
+    __tablename__ = "Post"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    date = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    authorId = Column(Integer, ForeignKey("User.id", ondelete="CASCADE"), nullable=False)
+
+    author = relationship("User", back_populates="posts")
