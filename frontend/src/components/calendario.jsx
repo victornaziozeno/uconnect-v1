@@ -7,17 +7,17 @@ import listPlugin from "@fullcalendar/list";
 import ptBr from "@fullcalendar/core/locales/pt-br";
 import { Tooltip, Modal } from "bootstrap";
 
-import Navbar from "./navBar"; // ✅ Navbar global no topo
+import Navbar from "./navBar";
+import MenuLateral from "./MenuLateral"; // ✅ Novo componente lateral
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "../styles/calendario.css";
 
-// URL da API
 const API_URL = "http://localhost:8000";
 
-// Função auxiliar — data local no formato yyyy-mm-dd
+// Funções auxiliares
 const dataLocalYYYYMMDD = (d = new Date()) => {
   const dt = d instanceof Date ? d : new Date(d);
   const y = dt.getFullYear();
@@ -26,7 +26,6 @@ const dataLocalYYYYMMDD = (d = new Date()) => {
   return `${y}-${m}-${day}`;
 };
 
-// Converte yyyy-mm-dd → dd/mm/yyyy
 const formatarDataBR = (dataString) => {
   const [ano, mes, dia] = dataString.split("-");
   return `${dia}/${mes}/${ano}`;
@@ -101,7 +100,7 @@ function Calendario() {
     setModoEdicao(false);
   };
 
-  // Adiciona evento
+  // Adicionar evento
   const adicionarEvento = async () => {
     if (!formulario.titulo || !formulario.data) {
       alert("Preencha pelo menos o título e a data!");
@@ -213,218 +212,234 @@ function Calendario() {
 
   return (
     <>
-      {/* ✅ Navbar Global */}
       <Navbar />
 
-      <div className="container mt-4">
-        <div className="row">
-          {/* 📅 Calendário */}
-          <div className="col-md-8">
-            <div className="card shadow-lg">
-              <div className="card-body">
-                <div className="d-flex justify-content-between mb-3">
-                  <h4>📅 Calendário Acadêmico - UCONNECT</h4>
-                  <button
-                    className="btn btn-success"
-                    data-bs-toggle="modal"
-                    data-bs-target="#modalEvento"
-                    onClick={() => resetarFormulario()}
-                  >
-                    + Adicionar Evento
-                  </button>
-                </div>
+      <div className="d-flex">
+        {/* 🔹 Menu Lateral */}
+        <MenuLateral />
 
-                <Fullcalendar
-                  plugins={[
-                    dayGridPlugin,
-                    timeGridPlugin,
-                    interactionPlugin,
-                    listPlugin,
-                  ]}
-                  initialView="dayGridMonth"
-                  locale={ptBr}
-                  height="600px"
-                  headerToolbar={{
-                    left: "prev,next today",
-                    center: "title",
-                    right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
-                  }}
-                  views={{ dayGridMonth: { displayEventTime: false } }}
-                  events={eventos.map((ev) => ({
-                    id: ev.id?.toString(),
-                    title: ev.title,
-                    start: ev.date,
-                    backgroundColor: "#1E90FF",
-                    textColor: "#fff",
-                    borderColor: "#1E90FF",
-                    extendedProps: {
-                      hora: ev.hora,
-                      descricao: ev.descricao,
-                      local: ev.local,
-                    },
-                  }))}
-                  eventMouseEnter={(info) => {
-                    const html = buildTooltipHtml(info.event.extendedProps);
-                    const old = Tooltip.getInstance(info.el);
-                    if (old) old.dispose();
-                    const tip = new Tooltip(info.el, {
-                      title: html,
-                      placement: "top",
-                      trigger: "manual",
-                      container: "body",
-                      html: true,
-                    });
-                    tip.show();
-                  }}
-                  eventMouseLeave={(info) => {
-                    const tip = Tooltip.getInstance(info.el);
-                    if (tip) tip.dispose();
-                  }}
-                  eventClick={(info) => {
-                    const ev = info.event;
-                    const props = ev.extendedProps;
-                    setFormulario({
-                      id: parseInt(ev.id),
-                      titulo: ev.title,
-                      data: ev.startStr.split("T")[0],
-                      descricao: props.descricao || "",
-                      local: props.local || "",
-                    });
-                    setModoEdicao(true);
-                    const modalEl = document.getElementById("modalEvento");
-                    const modal = Modal.getOrCreateInstance(modalEl);
-                    modal.show();
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+        {/* 🔹 Conteúdo principal */}
+        <div className="container-fluid mt-4">
+          <div className="row">
+            {/* 📅 Calendário */}
+            <div className="col-md-8">
+              <div className="card shadow-lg">
+                <div className="card-body">
+                  <div className="d-flex justify-content-between mb-3">
+                    <h4>📅 Calendário Acadêmico - UCONNECT</h4>
+                    <button
+                      className="btn btn-success"
+                      data-bs-toggle="modal"
+                      data-bs-target="#modalEvento"
+                      onClick={() => resetarFormulario()}
+                    >
+                      + Adicionar Evento
+                    </button>
+                  </div>
 
-          {/* 📘 Agenda do Dia */}
-          <div className="col-md-4">
-            <div className="agenda-card">
-              <div className="agenda-header">
-                Agenda do Dia ({formatarDataBR(HOJE)})
-              </div>
-              <div className="agenda-list">
-                {agenda.length > 0 ? (
-                  agenda.map((ev) => (
-                    <div key={ev.id} className="agenda-item">
-                      <strong>{ev.title}</strong>
-                      {ev.hora && <small>{ev.hora}</small>}
-                      {ev.local && (
-                        <small className="d-block text-muted">
-                          📍 {ev.local}
-                        </small>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-muted mb-0">Nenhum evento para hoje.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 🧩 Modal */}
-        <div
-          className="modal fade"
-          id="modalEvento"
-          tabIndex="-1"
-          aria-labelledby="modalEventoLabel"
-          aria-hidden="true"
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title" id="modalEventoLabel">
-                  {modoEdicao ? "Editar Evento" : "Adicionar Evento"}
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  data-bs-dismiss="modal"
-                  aria-label="Fechar"
-                  onClick={resetarFormulario}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <div className="mb-3">
-                  <label className="form-label">Título</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={formulario.titulo}
-                    onChange={(e) =>
-                      setFormulario({ ...formulario, titulo: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Data</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={formulario.data}
-                    onChange={(e) =>
-                      setFormulario({ ...formulario, data: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Local</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={formulario.local}
-                    onChange={(e) =>
-                      setFormulario({ ...formulario, local: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Descrição</label>
-                  <textarea
-                    className="form-control"
-                    rows="2"
-                    value={formulario.descricao}
-                    onChange={(e) =>
+                  <Fullcalendar
+                    plugins={[
+                      dayGridPlugin,
+                      timeGridPlugin,
+                      interactionPlugin,
+                      listPlugin,
+                    ]}
+                    initialView="dayGridMonth"
+                    locale={ptBr}
+                    height="600px"
+                    headerToolbar={{
+                      left: "prev,next today",
+                      center: "title",
+                      right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+                    }}
+                    views={{ dayGridMonth: { displayEventTime: false } }}
+                    events={eventos.map((ev) => ({
+                      id: ev.id?.toString(),
+                      title: ev.title,
+                      start: ev.date,
+                      backgroundColor: "#1E90FF",
+                      textColor: "#fff",
+                      borderColor: "#1E90FF",
+                      extendedProps: {
+                        hora: ev.hora,
+                        descricao: ev.descricao,
+                        local: ev.local,
+                      },
+                    }))}
+                    eventMouseEnter={(info) => {
+                      const html = buildTooltipHtml(info.event.extendedProps);
+                      const old = Tooltip.getInstance(info.el);
+                      if (old) old.dispose();
+                      const tip = new Tooltip(info.el, {
+                        title: html,
+                        placement: "top",
+                        trigger: "manual",
+                        container: "body",
+                        html: true,
+                      });
+                      tip.show();
+                    }}
+                    eventMouseLeave={(info) => {
+                      const tip = Tooltip.getInstance(info.el);
+                      if (tip) tip.dispose();
+                    }}
+                    eventClick={(info) => {
+                      const ev = info.event;
+                      const props = ev.extendedProps;
                       setFormulario({
-                        ...formulario,
-                        descricao: e.target.value,
-                      })
-                    }
+                        id: parseInt(ev.id),
+                        titulo: ev.title,
+                        data: ev.startStr.split("T")[0],
+                        descricao: props.descricao || "",
+                        local: props.local || "",
+                      });
+                      setModoEdicao(true);
+                      const modalEl = document.getElementById("modalEvento");
+                      const modal = Modal.getOrCreateInstance(modalEl);
+                      modal.show();
+                    }}
                   />
                 </div>
               </div>
-              <div className="modal-footer">
-                {modoEdicao && (
+            </div>
+
+            {/* 📘 Agenda do Dia */}
+            <div className="col-md-4">
+              <div className="agenda-card">
+                <div className="agenda-header">
+                  Agenda do Dia ({formatarDataBR(HOJE)})
+                </div>
+                <div className="agenda-list">
+                  {agenda.length > 0 ? (
+                    agenda.map((ev) => (
+                      <div key={ev.id} className="agenda-item">
+                        <strong>{ev.title}</strong>
+                        {ev.hora && <small>{ev.hora}</small>}
+                        {ev.local && (
+                          <small className="d-block text-muted">
+                            📍 {ev.local}
+                          </small>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted mb-0">
+                      Nenhum evento para hoje.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 🧩 Modal */}
+          <div
+            className="modal fade"
+            id="modalEvento"
+            tabIndex="-1"
+            aria-labelledby="modalEventoLabel"
+            aria-hidden="true"
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title" id="modalEventoLabel">
+                    {modoEdicao ? "Editar Evento" : "Adicionar Evento"}
+                  </h5>
                   <button
                     type="button"
-                    className="btn btn-danger me-auto"
-                    onClick={excluirEvento}
+                    className="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Fechar"
+                    onClick={resetarFormulario}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">Título</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formulario.titulo}
+                      onChange={(e) =>
+                        setFormulario({
+                          ...formulario,
+                          titulo: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Data</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={formulario.data}
+                      onChange={(e) =>
+                        setFormulario({
+                          ...formulario,
+                          data: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Local</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formulario.local}
+                      onChange={(e) =>
+                        setFormulario({
+                          ...formulario,
+                          local: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Descrição</label>
+                    <textarea
+                      className="form-control"
+                      rows="2"
+                      value={formulario.descricao}
+                      onChange={(e) =>
+                        setFormulario({
+                          ...formulario,
+                          descricao: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  {modoEdicao && (
+                    <button
+                      type="button"
+                      className="btn btn-danger me-auto"
+                      onClick={excluirEvento}
+                      data-bs-dismiss="modal"
+                    >
+                      Excluir
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                    onClick={resetarFormulario}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={modoEdicao ? salvarEdicao : adicionarEvento}
                     data-bs-dismiss="modal"
                   >
-                    Excluir
+                    {modoEdicao ? "Salvar Alterações" : "Adicionar"}
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  data-bs-dismiss="modal"
-                  onClick={resetarFormulario}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={modoEdicao ? salvarEdicao : adicionarEvento}
-                  data-bs-dismiss="modal"
-                >
-                  {modoEdicao ? "Salvar Alterações" : "Adicionar"}
-                </button>
+                </div>
               </div>
             </div>
           </div>
