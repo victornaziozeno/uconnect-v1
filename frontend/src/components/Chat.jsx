@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Navbar from "./navBar";
 import MenuLateral from "./MenuLateral";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -13,7 +13,14 @@ import iconeProfessores from "../assets/Professor.svg";
 import iconeAlunos from "../assets/alunos.svg";
 import iconeEnviar from "../assets/Paper_Plane.svg";
 
-const API_URL = "http://localhost:8000"; // mesmo padrão do calendário
+// Import das funções da API
+import { 
+  getConversations, 
+  getMessages, 
+  sendMessage, 
+  markAllMessagesAsRead,
+  createConversation 
+} from "../services/api";
 
 function Chat() {
   const [conversas, setConversas] = useState([]);
@@ -21,90 +28,108 @@ function Chat() {
   const [conversaAtiva, setConversaAtiva] = useState(null);
   const [filtroAtivo, setFiltroAtivo] = useState("Todos");
   const [novaMensagem, setNovaMensagem] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const chatBodyRef = useRef(null);
 
-  // 🔹 Busca conversas do usuário (simula GET /chats)
+  // 🔹 Busca conversas do usuário
   useEffect(() => {
-    const fetchConversas = async () => {
-      try {
-        const token = localStorage.getItem("accessToken");
-        if (!token) return console.warn("Token ausente — login necessário.");
-
-        const resp = await fetch(`${API_URL}/chats`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!resp.ok) throw new Error("Erro ao carregar conversas");
-
-        const data = await resp.json();
-        setConversas(data);
-      } catch (err) {
-        console.error("Erro ao buscar conversas:", err);
-      }
-    };
-
     fetchConversas();
-  }, []);
+  }, [filtroAtivo]);
 
-  // 🔹 Busca mensagens da conversa ativa (simula GET /chats/:id/messages)
+  // 🔹 Busca mensagens da conversa ativa
   useEffect(() => {
-    const fetchMensagens = async () => {
-      if (!conversaAtiva) return;
-      try {
-        const token = localStorage.getItem("accessToken");
-        const resp = await fetch(`${API_URL}/chats/${conversaAtiva}/messages`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!resp.ok) throw new Error("Erro ao carregar mensagens");
-
-        const data = await resp.json();
-        setMensagens(data);
-      } catch (err) {
-        console.error("Erro ao buscar mensagens:", err);
-      }
-    };
-
-    fetchMensagens();
+    if (conversaAtiva) {
+      fetchMensagens();
+      // Marcar todas as mensagens como lidas ao abrir a conversa
+      markAllMessagesAsRead(conversaAtiva).catch(console.error);
+    }
   }, [conversaAtiva]);
 
-  // 🔹 Enviar mensagem (simula POST /messages)
+  // 🔹 Auto-scroll para última mensagem
+  useEffect(() => {
+    if (chatBodyRef.current) {
+      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+    }
+  }, [mensagens]);
+
+  const fetchConversas = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getConversations(filtroAtivo);
+      setConversas(data);
+    } catch (err) {
+      console.error("Erro ao buscar conversas:", err);
+      setError("Erro ao carregar conversas");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMensagens = async () => {
+    if (!conversaAtiva) return;
+    
+    try {
+      setLoading(true);
+      const data = await getMessages(conversaAtiva);
+      setMensagens(data);
+    } catch (err) {
+      console.error("Erro ao buscar mensagens:", err);
+      setError("Erro ao carregar mensagens");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const enviarMensagem = async () => {
     if (novaMensagem.trim() === "" || !conversaAtiva) return;
 
-    const token = localStorage.getItem("accessToken");
-    const msg = {
-      content: novaMensagem,
+    const msgData = {
+      content: novaMensagem.trim(),
       conversationId: conversaAtiva,
     };
 
     try {
-      const resp = await fetch(`${API_URL}/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(msg),
-      });
-
-      if (!resp.ok) throw new Error("Erro ao enviar mensagem");
-
-      const nova = await resp.json();
-      setMensagens((prev) => [...prev, nova]);
+      const novaMsgEnviada = await sendMessage(msgData);
+      setMensagens((prev) => [...prev, novaMsgEnviada]);
       setNovaMensagem("");
+      
+      // Atualizar a lista de conversas para refletir a última mensagem
+      fetchConversas();
     } catch (err) {
       console.error("Erro ao enviar mensagem:", err);
-
-      // fallback local (mock)
-      setMensagens((prev) => [
-        ...prev,
-        {
-          autor: "Você",
-          conteudo: novaMensagem,
-          hora: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          tipo: "enviada",
-        },
-      ]);
-      setNovaMensagem("");
+      setError("Erro ao enviar mensagem");
     }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      enviarMensagem();
+    }
+  };
+
+  const selecionarConversa = (conversaId) => {
+    setConversaAtiva(conversaId);
+    setError(null);
+  };
+
+  // Filtragem local de conversas por pesquisa
+  const conversasFiltradas = conversas.filter((conv) => {
+    const nome = conv.nome || conv.title || "";
+    return nome.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  // Obter conversa ativa atual
+  const conversaAtualObj = conversas.find((c) => c.id === conversaAtiva);
+
+  // Formatar timestamp das mensagens
+  const formatarHora = (timestamp) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
@@ -115,6 +140,17 @@ function Chat() {
         <MenuLateral />
 
         <div className="container-fluid mt-4">
+          {error && (
+            <div className="alert alert-danger alert-dismissible fade show" role="alert">
+              {error}
+              <button 
+                type="button" 
+                className="btn-close" 
+                onClick={() => setError(null)}
+              ></button>
+            </div>
+          )}
+
           <div className="row">
             {/* 🔹 Lista de conversas */}
             <div className="col-md-4">
@@ -130,6 +166,8 @@ function Chat() {
                         type="text"
                         className="form-control border-start-0"
                         placeholder="Pesquisar"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                       />
                     </div>
                   </div>
@@ -141,9 +179,9 @@ function Chat() {
                       { nome: "Atendimento", icon: iconeAtendimento },
                       { nome: "Professores", icon: iconeProfessores },
                       { nome: "Alunos", icon: iconeAlunos },
-                    ].map((filtro, index) => (
+                    ].map((filtro) => (
                       <div
-                        key={index}
+                        key={filtro.nome}
                         className="filtro-item d-flex flex-column align-items-center"
                         onClick={() => setFiltroAtivo(filtro.nome)}
                         style={{ cursor: "pointer" }}
@@ -167,37 +205,55 @@ function Chat() {
                   </div>
 
                   {/* Conversas */}
-                  <div className="list-group list-group-flush">
-                    {(conversas.length ? conversas : [
-                      // Mock local
-                      { id: 1, nome: "Atendimento UCB", ultimaMensagem: "Olá! Em que posso ajudar?", hora: "18:27" },
-                      { id: 2, nome: "Professor(a) Paulo Lemes", ultimaMensagem: "Entendi, obrigado!", hora: "18:20" },
-                    ]).map((chat) => (
-                      <div
-                        key={chat.id}
-                        className={`list-group-item list-group-item-action d-flex align-items-start ${
-                          conversaAtiva === chat.id ? "bg-light" : ""
-                        }`}
-                        onClick={() => setConversaAtiva(chat.id)}
-                      >
-                        <img
-                          src={iconeUsuario}
-                          alt="Ícone do usuário"
-                          width="42"
-                          height="42"
-                          className="me-3"
-                        />
-                        <div className="flex-grow-1">
-                          <div className="d-flex justify-content-between">
-                            <strong>{chat.nome || chat.title}</strong>
-                            <small>{chat.hora || "--:--"}</small>
-                          </div>
-                          <div className="text-muted small">
-                            {chat.ultimaMensagem || "Nova conversa"}
-                          </div>
+                  <div className="list-group list-group-flush" style={{ maxHeight: "500px", overflowY: "auto" }}>
+                    {loading && conversas.length === 0 ? (
+                      <div className="text-center p-4">
+                        <div className="spinner-border text-primary" role="status">
+                          <span className="visually-hidden">Carregando...</span>
                         </div>
                       </div>
-                    ))}
+                    ) : conversasFiltradas.length === 0 ? (
+                      <div className="text-center text-muted p-4">
+                        Nenhuma conversa encontrada
+                      </div>
+                    ) : (
+                      conversasFiltradas.map((chat) => (
+                        <div
+                          key={chat.id}
+                          className={`list-group-item list-group-item-action d-flex align-items-start ${
+                            conversaAtiva === chat.id ? "bg-light" : ""
+                          }`}
+                          onClick={() => selecionarConversa(chat.id)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <img
+                            src={iconeUsuario}
+                            alt="Ícone do usuário"
+                            width="42"
+                            height="42"
+                            className="me-3"
+                          />
+                          <div className="flex-grow-1">
+                            <div className="d-flex justify-content-between align-items-start">
+                              <strong className="text-truncate" style={{ maxWidth: "200px" }}>
+                                {chat.nome || chat.title || "Sem título"}
+                              </strong>
+                              <small className="text-muted">{chat.hora || ""}</small>
+                            </div>
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div className="text-muted small text-truncate" style={{ maxWidth: "200px" }}>
+                                {chat.ultimaMensagem || "Sem mensagens"}
+                              </div>
+                              {chat.unreadCount > 0 && (
+                                <span className="badge bg-primary rounded-pill">
+                                  {chat.unreadCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -206,57 +262,86 @@ function Chat() {
             {/* 🔹 Área do chat */}
             <div className="col-md-8">
               <div className="card shadow-sm chat-card">
-                <div className="card-header bg-light d-flex align-items-center">
-                  {conversaAtiva ? (
+                <div className="card-header bg-light d-flex align-items-center justify-content-between">
+                  {conversaAtiva && conversaAtualObj ? (
                     <>
-                      <img
-                        src={iconeUsuario}
-                        alt="Ícone do usuário"
-                        width="38"
-                        height="38"
-                        className="me-2"
-                      />
-                      <strong>
-                        {conversas.find((c) => c.id === conversaAtiva)?.nome || "Carregando..."}
-                      </strong>
+                      <div className="d-flex align-items-center">
+                        <img
+                          src={iconeUsuario}
+                          alt="Ícone do usuário"
+                          width="38"
+                          height="38"
+                          className="me-2"
+                        />
+                        <div>
+                          <strong>{conversaAtualObj.nome || conversaAtualObj.title}</strong>
+                          <div className="small text-muted">
+                            {conversaAtualObj.participants?.length || 0} participante(s)
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={fetchMensagens}
+                        disabled={loading}
+                      >
+                        <i className="bi bi-arrow-clockwise"></i>
+                      </button>
                     </>
                   ) : (
                     <strong>Selecione uma conversa</strong>
                   )}
                 </div>
 
-                <div className="card-body chat-body">
+                <div className="card-body chat-body" ref={chatBodyRef}>
                   {conversaAtiva ? (
-                    mensagens.length === 0 ? (
+                    loading && mensagens.length === 0 ? (
+                      <div className="text-center mt-4">
+                        <div className="spinner-border text-primary" role="status">
+                          <span className="visually-hidden">Carregando...</span>
+                        </div>
+                      </div>
+                    ) : mensagens.length === 0 ? (
                       <div className="text-center text-muted mt-4">
-                        Nenhuma mensagem nesta conversa.
+                        Nenhuma mensagem nesta conversa. Seja o primeiro a enviar!
                       </div>
                     ) : (
                       <div className="d-flex flex-column gap-2">
-                        {mensagens.map((msg, index) => (
-                          <div
-                            key={index}
-                            className={`d-flex flex-column ${
-                              msg.tipo === "enviada" ? "align-self-end" : "align-self-start"
-                            }`}
-                          >
+                        {mensagens.map((msg) => {
+                          const isSent = msg.sender?.id !== undefined && msg.senderId !== undefined;
+                          const isMyMessage = msg.sender?.registration === localStorage.getItem("registration");
+                          
+                          return (
                             <div
-                              className={`msg-balao ${
-                                msg.tipo === "enviada" ? "enviada" : "recebida"
+                              key={msg.id}
+                              className={`d-flex flex-column ${
+                                isMyMessage ? "align-self-end" : "align-self-start"
                               }`}
                             >
-                              {msg.conteudo || msg.content}
+                              {!isMyMessage && msg.sender && (
+                                <small className="text-muted mb-1">
+                                  {msg.sender.name}
+                                </small>
+                              )}
+                              <div
+                                className={`msg-balao ${
+                                  isMyMessage ? "enviada" : "recebida"
+                                }`}
+                              >
+                                {msg.content}
+                              </div>
+                              <small className="text-muted mt-1">
+                                {formatarHora(msg.timestamp)}
+                              </small>
                             </div>
-                            <small className="text-muted">
-                              {msg.hora || msg.timestamp?.slice(11, 16)}
-                            </small>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )
                   ) : (
                     <div className="text-center text-muted mt-4">
-                      Escolha uma conversa à esquerda para começar.
+                      <i className="bi bi-chat-dots" style={{ fontSize: "4rem", opacity: 0.3 }}></i>
+                      <p className="mt-3">Escolha uma conversa à esquerda para começar</p>
                     </div>
                   )}
                 </div>
@@ -274,7 +359,8 @@ function Chat() {
                         placeholder="Digite uma mensagem"
                         value={novaMensagem}
                         onChange={(e) => setNovaMensagem(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && enviarMensagem()}
+                        onKeyPress={handleKeyPress}
+                        disabled={loading}
                       />
                       <span className="input-group-text bg-transparent border-0 fs-4">
                         <i className="bi bi-mic"></i>
@@ -282,6 +368,7 @@ function Chat() {
                       <button
                         className="btn btn-enviar d-flex align-items-center justify-content-center"
                         onClick={enviarMensagem}
+                        disabled={loading || novaMensagem.trim() === ""}
                       >
                         <img src={iconeEnviar} alt="Enviar" width="20" height="20" />
                       </button>

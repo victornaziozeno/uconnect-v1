@@ -31,7 +31,14 @@ class AccessStatus(str, enum.Enum):
     inactive = "inactive"
     suspended = "suspended"
 
-# --- Tabela de Associação (Muitos-para-Muitos) ---
+class ConversationType(str, enum.Enum):
+    direct = "direct"  # Conversa direta entre 2 usuários
+    group = "group"    # Conversa em grupo
+    support = "support"  # Atendimento/suporte
+
+# --- Tabelas de Associação (Muitos-para-Muitos) ---
+# IMPORTANTE: As tabelas de associação devem ser definidas ANTES dos modelos que as usam
+
 # `academic_group_user_association` é uma tabela auxiliar que mapeia o
 # relacionamento N-para-N entre Usuários (`User`) e Grupos Acadêmicos
 # (`AcademicGroup`), permitindo que um usuário esteja em vários grupos e
@@ -39,6 +46,13 @@ class AccessStatus(str, enum.Enum):
 academic_group_user_association = Table('AcademicGroup_User', Base.metadata,
     Column('groupId', Integer, ForeignKey('AcademicGroup.id'), primary_key=True),
     Column('userId', Integer, ForeignKey('User.id'), primary_key=True)
+)
+
+# Tabela de associação para participantes de conversas
+conversation_participants = Table('Conversation_Participants', Base.metadata,
+    Column('conversationId', Integer, ForeignKey('Conversation.id'), primary_key=True),
+    Column('userId', Integer, ForeignKey('User.id'), primary_key=True),
+    Column('joinedAt', DateTime, default=datetime.utcnow, nullable=False)
 )
 
 # --- Modelos de Autenticação e Acesso ---
@@ -60,6 +74,7 @@ class User(Base):
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
     updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    # Relacionamentos existentes
     events_created = relationship("Event", back_populates="creator")
     groups = relationship(
         "AcademicGroup",
@@ -67,6 +82,14 @@ class User(Base):
         back_populates="users"
     )
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
+    
+    # Relacionamentos de Chat
+    conversations = relationship(
+        "Conversation",
+        secondary=conversation_participants,
+        back_populates="participants"
+    )
+    messages_sent = relationship("Message", back_populates="sender")
 
     __table_args__ = (
         Index("ix_users_registration", "registration"),
@@ -141,3 +164,47 @@ class Post(Base):
     authorId = Column(Integer, ForeignKey("User.id", ondelete="CASCADE"), nullable=False)
 
     author = relationship("User", back_populates="posts")
+
+# --- Modelos de Chat ---
+
+class Conversation(Base):
+    __tablename__ = "Conversation"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=True)  # Título da conversa (para grupos)
+    type = Column(Enum(ConversationType), nullable=False, default=ConversationType.direct)
+    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relacionamentos
+    participants = relationship(
+        "User",
+        secondary=conversation_participants,
+        back_populates="conversations"
+    )
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index("idx_conversation_type", "type"),
+        Index("idx_conversation_updated", "updatedAt"),
+    )
+
+class Message(Base):
+    __tablename__ = "Message"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    content = Column(Text, nullable=False)
+    conversationId = Column(Integer, ForeignKey("Conversation.id", ondelete="CASCADE"), nullable=False)
+    senderId = Column(Integer, ForeignKey("User.id", ondelete="SET NULL"), nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    isRead = Column(Boolean, default=False, nullable=False)
+    
+    # Relacionamentos
+    conversation = relationship("Conversation", back_populates="messages")
+    sender = relationship("User", back_populates="messages_sent")
+    
+    __table_args__ = (
+        Index("idx_message_conversation", "conversationId"),
+        Index("idx_message_timestamp", "timestamp"),
+        Index("idx_message_sender", "senderId"),
+    )
