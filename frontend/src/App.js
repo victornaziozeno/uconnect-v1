@@ -4,6 +4,8 @@ import Login from "./components/login";
 import { validateSession, logout as apiLogout } from "./services/api";
 
 function App() {
+
+  
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
