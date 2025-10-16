@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Navbar from "./navBar";
 import MenuLateral from "./MenuLateral";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -19,13 +19,14 @@ import {
   getMessages, 
   sendMessage, 
   markAllMessagesAsRead,
-  createConversation 
+  getCurrentUser // 1. Importar a função
 } from "../services/api";
 
 function Chat() {
+  const [currentUser, setCurrentUser] = useState(null); // 2. Estado para o usuário logado
   const [conversas, setConversas] = useState([]);
   const [mensagens, setMensagens] = useState([]);
-  const [conversaAtiva, setConversaAtiva] = useState(null);
+  const [conversaAtivaId, setConversaAtivaId] = useState(null);
   const [filtroAtivo, setFiltroAtivo] = useState("Todos");
   const [novaMensagem, setNovaMensagem] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,19 +34,61 @@ function Chat() {
   const [searchTerm, setSearchTerm] = useState("");
   const chatBodyRef = useRef(null);
 
+  // 🔹 Busca o usuário logado ao carregar o componente
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUser(user);
+      } catch (err) {
+        console.error("Erro ao buscar usuário atual:", err);
+        setError("Não foi possível carregar os dados do usuário.");
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
+  const fetchConversas = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getConversations(); 
+      setConversas(data);
+    } catch (err) {
+      console.error("Erro ao buscar conversas:", err);
+      setError("Erro ao carregar conversas");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchMensagens = useCallback(async () => {
+    if (!conversaAtivaId) return;
+    
+    try {
+      setLoading(true);
+      const data = await getMessages(conversaAtivaId);
+      setMensagens(data);
+      await markAllMessagesAsRead(conversaAtivaId);
+    } catch (err) {
+      console.error("Erro ao buscar mensagens:", err);
+      setError("Erro ao carregar mensagens");
+    } finally {
+      setLoading(false);
+    }
+  }, [conversaAtivaId]);
+
   // 🔹 Busca conversas do usuário
   useEffect(() => {
     fetchConversas();
-  }, [filtroAtivo]);
+  }, [fetchConversas, filtroAtivo]);
 
   // 🔹 Busca mensagens da conversa ativa
   useEffect(() => {
-    if (conversaAtiva) {
+    if (conversaAtivaId) {
       fetchMensagens();
-      // Marcar todas as mensagens como lidas ao abrir a conversa
-      markAllMessagesAsRead(conversaAtiva).catch(console.error);
     }
-  }, [conversaAtiva]);
+  }, [conversaAtivaId, fetchMensagens]);
 
   // 🔹 Auto-scroll para última mensagem
   useEffect(() => {
@@ -54,50 +97,23 @@ function Chat() {
     }
   }, [mensagens]);
 
-  const fetchConversas = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getConversations(filtroAtivo);
-      setConversas(data);
-    } catch (err) {
-      console.error("Erro ao buscar conversas:", err);
-      setError("Erro ao carregar conversas");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchMensagens = async () => {
-    if (!conversaAtiva) return;
-    
-    try {
-      setLoading(true);
-      const data = await getMessages(conversaAtiva);
-      setMensagens(data);
-    } catch (err) {
-      console.error("Erro ao buscar mensagens:", err);
-      setError("Erro ao carregar mensagens");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const enviarMensagem = async () => {
-    if (novaMensagem.trim() === "" || !conversaAtiva) return;
-
-    const msgData = {
-      content: novaMensagem.trim(),
-      conversationId: conversaAtiva,
-    };
+    const trimmedMessage = novaMensagem.trim();
+    if (trimmedMessage === "" || !conversaAtivaId) return;
 
     try {
-      const novaMsgEnviada = await sendMessage(msgData);
+      const novaMsgEnviada = await sendMessage(conversaAtivaId, trimmedMessage);
       setMensagens((prev) => [...prev, novaMsgEnviada]);
       setNovaMensagem("");
       
-      // Atualizar a lista de conversas para refletir a última mensagem
-      fetchConversas();
+      setConversas(prevConversas => 
+        prevConversas.map(conv => 
+          conv.id === conversaAtivaId 
+          ? { ...conv, last_message: novaMsgEnviada } 
+          : conv
+        )
+      );
+
     } catch (err) {
       console.error("Erro ao enviar mensagem:", err);
       setError("Erro ao enviar mensagem");
@@ -112,20 +128,18 @@ function Chat() {
   };
 
   const selecionarConversa = (conversaId) => {
-    setConversaAtiva(conversaId);
+    setConversaAtivaId(conversaId);
     setError(null);
+    setMensagens([]);
   };
 
-  // Filtragem local de conversas por pesquisa
   const conversasFiltradas = conversas.filter((conv) => {
-    const nome = conv.nome || conv.title || "";
+    const nome = conv.title || "";
     return nome.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  // Obter conversa ativa atual
-  const conversaAtualObj = conversas.find((c) => c.id === conversaAtiva);
+  const conversaAtualObj = conversas.find((c) => c.id === conversaAtivaId);
 
-  // Formatar timestamp das mensagens
   const formatarHora = (timestamp) => {
     if (!timestamp) return "";
     const date = new Date(timestamp);
@@ -221,7 +235,7 @@ function Chat() {
                         <div
                           key={chat.id}
                           className={`list-group-item list-group-item-action d-flex align-items-start ${
-                            conversaAtiva === chat.id ? "bg-light" : ""
+                            conversaAtivaId === chat.id ? "bg-light" : ""
                           }`}
                           onClick={() => selecionarConversa(chat.id)}
                           style={{ cursor: "pointer" }}
@@ -236,19 +250,14 @@ function Chat() {
                           <div className="flex-grow-1">
                             <div className="d-flex justify-content-between align-items-start">
                               <strong className="text-truncate" style={{ maxWidth: "200px" }}>
-                                {chat.nome || chat.title || "Sem título"}
+                                {chat.title || "Sem título"}
                               </strong>
-                              <small className="text-muted">{chat.hora || ""}</small>
+                              <small className="text-muted">{chat.last_message ? formatarHora(chat.last_message.timestamp) : ""}</small>
                             </div>
                             <div className="d-flex justify-content-between align-items-center">
                               <div className="text-muted small text-truncate" style={{ maxWidth: "200px" }}>
-                                {chat.ultimaMensagem || "Sem mensagens"}
+                                {chat.last_message?.content || "Sem mensagens"}
                               </div>
-                              {chat.unreadCount > 0 && (
-                                <span className="badge bg-primary rounded-pill">
-                                  {chat.unreadCount}
-                                </span>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -263,7 +272,7 @@ function Chat() {
             <div className="col-md-8">
               <div className="card shadow-sm chat-card">
                 <div className="card-header bg-light d-flex align-items-center justify-content-between">
-                  {conversaAtiva && conversaAtualObj ? (
+                  {conversaAtivaId && conversaAtualObj ? (
                     <>
                       <div className="d-flex align-items-center">
                         <img
@@ -274,7 +283,7 @@ function Chat() {
                           className="me-2"
                         />
                         <div>
-                          <strong>{conversaAtualObj.nome || conversaAtualObj.title}</strong>
+                          <strong>{conversaAtualObj.title}</strong>
                           <div className="small text-muted">
                             {conversaAtualObj.participants?.length || 0} participante(s)
                           </div>
@@ -294,7 +303,7 @@ function Chat() {
                 </div>
 
                 <div className="card-body chat-body" ref={chatBodyRef}>
-                  {conversaAtiva ? (
+                  {conversaAtivaId ? (
                     loading && mensagens.length === 0 ? (
                       <div className="text-center mt-4">
                         <div className="spinner-border text-primary" role="status">
@@ -308,19 +317,19 @@ function Chat() {
                     ) : (
                       <div className="d-flex flex-column gap-2">
                         {mensagens.map((msg) => {
-                          const isSent = msg.sender?.id !== undefined && msg.senderId !== undefined;
-                          const isMyMessage = msg.sender?.registration === localStorage.getItem("registration");
+                          // 3. CORREÇÃO: Comparando com o ID do usuário logado dinamicamente
+                          const isMyMessage = currentUser && msg.authorId === currentUser.id;
                           
                           return (
                             <div
                               key={msg.id}
                               className={`d-flex flex-column ${
-                                isMyMessage ? "align-self-end" : "align-self-start"
+                                isMyMessage ? "align-items-end" : "align-items-start"
                               }`}
                             >
-                              {!isMyMessage && msg.sender && (
+                              {!isMyMessage && (
                                 <small className="text-muted mb-1">
-                                  {msg.sender.name}
+                                  {/* O nome do remetente precisaria vir da API */}
                                 </small>
                               )}
                               <div
@@ -347,7 +356,7 @@ function Chat() {
                 </div>
 
                 {/* Campo de envio */}
-                {conversaAtiva && (
+                {conversaAtivaId && (
                   <div className="card-footer bg-light">
                     <div className="input-group align-items-center">
                       <span className="input-group-text bg-transparent border-0 fs-4">
@@ -385,3 +394,4 @@ function Chat() {
 }
 
 export default Chat;
+

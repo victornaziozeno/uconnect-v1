@@ -10,14 +10,14 @@ const getHeaders = (includeAuth = true) => {
   const headers = {
     "Content-Type": "application/json",
   };
-  
+
   if (includeAuth) {
     const token = getToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
   }
-  
+
   return headers;
 };
 
@@ -28,7 +28,7 @@ const handleResponse = async (response) => {
     throw new Error(error.detail || `Erro HTTP ${response.status}`);
   }
   if (response.status !== 204) {
-      return response.json();
+    return response.json();
   }
   return null;
 };
@@ -44,7 +44,7 @@ export const login = async (registration, password) => {
       password: password.trim(),
     }),
   });
-  
+
   const data = await handleResponse(response);
   setToken(data.access_token);
   return data;
@@ -109,22 +109,20 @@ const eventToBackend = (event) => {
 
 // Converter formato backend -> frontend
 const eventFromBackend = (event) => {
-  // Formatar hora (startTime e endTime vêm como "HH:MM:SS" do banco)
   let horaStr = "";
   let startTimeStr = "";
   let endTimeStr = "";
-  
+
   if (event.startTime) {
-    // Remover segundos se vier no formato HH:MM:SS
     startTimeStr = event.startTime.substring(0, 5);
     horaStr = startTimeStr;
-    
+
     if (event.endTime) {
       endTimeStr = event.endTime.substring(0, 5);
       horaStr += ` - ${endTimeStr}`;
     }
   }
-  
+
   return {
     id: event.id,
     title: event.title,
@@ -145,7 +143,7 @@ export const getEvents = async () => {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
-  
+
   const data = await handleResponse(response);
   return data.map(eventFromBackend);
 };
@@ -155,7 +153,7 @@ export const getEvent = async (eventId) => {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
-  
+
   const data = await handleResponse(response);
   return eventFromBackend(data);
 };
@@ -166,7 +164,7 @@ export const createEvent = async (event) => {
     headers: getHeaders(),
     body: JSON.stringify(eventToBackend(event)),
   });
-  
+
   const data = await handleResponse(response);
   return eventFromBackend(data);
 };
@@ -177,7 +175,7 @@ export const updateEvent = async (eventId, event) => {
     headers: getHeaders(),
     body: JSON.stringify(eventToBackend(event)),
   });
-  
+
   const data = await handleResponse(response);
   return eventFromBackend(data);
 };
@@ -187,13 +185,45 @@ export const deleteEvent = async (eventId) => {
     method: "DELETE",
     headers: getHeaders(),
   });
-  
-  if (!response.ok) {
-    throw new Error(`Erro ao deletar evento: ${response.status}`);
-  }
-  
-  return { success: true };
+  // O handleResponse cuida da verificação de erro
+  return handleResponse(response);
 };
+
+
+// ==================== CHAT ====================
+
+export const getConversations = async () => {
+  const response = await fetch(`${API_URL}/chats`, {
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+export const getMessages = async (chatId) => {
+  const response = await fetch(`${API_URL}/chats/${chatId}/messages`, {
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+export const sendMessage = async (chatId, messageContent) => {
+  const response = await fetch(`${API_URL}/chats/${chatId}/messages`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ content: messageContent }),
+  });
+  return handleResponse(response);
+};
+
+export const markAllMessagesAsRead = async (chatId) => {
+  // Nota: o endpoint '/read' é um exemplo e pode precisar de ajuste
+  const response = await fetch(`${API_URL}/chats/${chatId}/read`, {
+    method: 'POST',
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
 
 // ==================== UTILITÁRIOS ====================
 
