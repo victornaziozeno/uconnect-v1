@@ -216,7 +216,6 @@ export const sendMessage = async (chatId, messageContent) => {
 };
 
 export const markAllMessagesAsRead = async (chatId) => {
-  // Nota: o endpoint '/read' é um exemplo e pode precisar de ajuste
   const response = await fetch(`${API_URL}/chats/${chatId}/read`, {
     method: 'POST',
     headers: getHeaders(),
