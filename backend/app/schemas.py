@@ -146,3 +146,42 @@ class PostResponse(PostBase):
     author: UserResponse
     
     model_config = ConfigDict(from_attributes=True)
+
+# Em schemas.py
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+
+# --- Esquemas para Mensagens ---
+class MessageBase(BaseModel):
+    content: str
+
+class MessageCreate(MessageBase):
+    pass
+
+class Message(MessageBase):
+    id: int
+    timestamp: datetime
+    authorId: int
+
+    class Config:
+        from_attributes = True
+
+# --- Esquemas para Conversas (Chat) ---
+class UserSimple(BaseModel): # Schema simples para não expor dados sensíveis do usuário
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+        
+class Chat(BaseModel):
+    id: int
+    participants: List[UserSimple]
+    last_message: Optional[Message] = None # Para mostrar a última mensagem na lista de chats
+
+    class Config:
+        from_attributes = True
+
+class ChatCreate(BaseModel):
+    participant_ids: List[int] # Lista de IDs dos usuários para iniciar a conversa

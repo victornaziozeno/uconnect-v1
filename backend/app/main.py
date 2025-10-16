@@ -11,7 +11,7 @@ Ele é o ponto de entrada do servidor. Suas responsabilidades incluem:
 from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, users, events, groups, publications
+from .routers import auth, users, events, groups, publications, chat
 from .db import Base, engine
 
 # --- Criação das Tabelas no Banco de Dados ---
@@ -61,7 +61,7 @@ app.include_router(users.router)
 app.include_router(events.router)
 app.include_router(groups.router)
 app.include_router(publications.router)
-
+app.include_router(chat.router)
 
 # --- Rotas Principais (Raiz e Health Check) ---
 # Estas são rotas simples definidas diretamente no arquivo principal.
