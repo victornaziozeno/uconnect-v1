@@ -1,16 +1,9 @@
-# ---------------- MODELOS DO BANCO DE DADOS (SCHEMA) ---------------- #
-"""
-Este arquivo define todo o schema do banco de dados da aplicação
-utilizando o ORM (Object-Relational Mapper) do SQLAlchemy.
-"""
-from sqlalchemy import (Boolean, Column, Integer, String, DateTime, Date,
-                        Enum, ForeignKey, Text, Index, Time, Table)
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, Date, Enum, ForeignKey, Text, Index, Time, Table
 from sqlalchemy.orm import relationship
 import enum
 from datetime import datetime
 from .db import Base
 
-# --- ENUMS (Tipos de Dados Personalizados) ---
 class UserRole(str, enum.Enum):
     student = "student"
     teacher = "teacher"
@@ -27,7 +20,10 @@ class ConversationType(str, enum.Enum):
     group = "group"
     support = "support"
 
-# --- Tabelas de Associação (Muitos-para-Muitos) ---
+class PostType(str, enum.Enum):
+    announcement = "announcement"
+    notice = "notice"
+
 academic_group_user_association = Table('AcademicGroup_User', Base.metadata,
     Column('groupId', Integer, ForeignKey('AcademicGroup.id'), primary_key=True),
     Column('userId', Integer, ForeignKey('User.id'), primary_key=True)
@@ -39,10 +35,8 @@ conversation_participants = Table('Conversation_Participants', Base.metadata,
     Column('joinedAt', DateTime, default=datetime.utcnow, nullable=False)
 )
 
-# --- Modelos de Autenticação e Acesso ---
 class User(Base):
     __tablename__ = "User"
-
     id = Column(Integer, primary_key=True, index=True)
     registration = Column(String(50), unique=True, index=True, nullable=False)
     name = Column(String(100), nullable=False)
@@ -52,16 +46,13 @@ class User(Base):
     accessStatus = Column(Enum(AccessStatus), default=AccessStatus.active, nullable=False)
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
     updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    # Relacionamentos
+    
     events_created = relationship("Event", back_populates="creator")
     groups = relationship("AcademicGroup", secondary=academic_group_user_association, back_populates="users")
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
-    
-    # Relacionamentos de Chat
     conversations = relationship("Conversation", secondary=conversation_participants, back_populates="participants")
     messages_sent = relationship("Message", back_populates="sender")
-
+    
     __table_args__ = (
         Index("ix_users_registration", "registration"),
         Index("ix_users_email", "email"),
@@ -75,7 +66,6 @@ class Session(Base):
     expirationDate = Column(DateTime, nullable=False)
     user = relationship("User", lazy="joined")
 
-# --- Modelos de Gestão Acadêmica ---
 class Event(Base):
     __tablename__ = "Event"
     id = Column(Integer, primary_key=True, index=True)
@@ -88,6 +78,7 @@ class Event(Base):
     academicGroupId = Column(String(50), nullable=True)
     creatorId = Column(Integer, ForeignKey("User.id", ondelete="SET NULL"), nullable=True)
     creator = relationship("User", back_populates="events_created")
+    
     __table_args__ = (
         Index("idx_event_date", "eventDate"),
         Index("idx_event_timestamp", "timestamp"),
@@ -107,11 +98,16 @@ class Post(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(200), nullable=False)
     content = Column(Text, nullable=False)
+    type = Column(Enum(PostType), nullable=False, default=PostType.announcement)
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
     authorId = Column(Integer, ForeignKey("User.id", ondelete="CASCADE"), nullable=False)
     author = relationship("User", back_populates="posts")
+    
+    __table_args__ = (
+        Index("idx_post_type", "type"),
+        Index("idx_post_date", "date"),
+    )
 
-# --- Modelos de Chat ---
 class Conversation(Base):
     __tablename__ = "Conversation"
     id = Column(Integer, primary_key=True, index=True)
@@ -120,7 +116,6 @@ class Conversation(Base):
     createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
     updatedAt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
-    # Relacionamentos
     participants = relationship("User", secondary=conversation_participants, back_populates="conversations")
     channel = relationship("Channel", uselist=False, back_populates="conversation", cascade="all, delete-orphan")
     
@@ -134,7 +129,6 @@ class Channel(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     conversationId = Column(Integer, ForeignKey("Conversation.id", ondelete="CASCADE"))
-
     conversation = relationship("Conversation", back_populates="channel")
     subchannels = relationship("Subchannel", back_populates="parent_channel", cascade="all, delete-orphan")
 
@@ -143,7 +137,6 @@ class Subchannel(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     parentChannelId = Column(Integer, ForeignKey("Channel.id", ondelete="CASCADE"))
-
     parent_channel = relationship("Channel", back_populates="subchannels")
     messages = relationship("Message", back_populates="subchannel", cascade="all, delete-orphan")
 
@@ -156,13 +149,11 @@ class Message(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     isRead = Column(Boolean, default=False, nullable=False)
     
-    # Relacionamentos
     subchannel = relationship("Subchannel", back_populates="messages")
     sender = relationship("User", back_populates="messages_sent")
-
+    
     __table_args__ = (
         Index("idx_message_subchannel", "subchannelId"),
         Index("idx_message_timestamp", "timestamp"),
         Index("idx_message_author", "authorId"),
     )
-
