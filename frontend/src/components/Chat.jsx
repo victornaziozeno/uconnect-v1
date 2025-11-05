@@ -5,7 +5,6 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "../styles/chat.css";
 
-// Ícones
 import iconeUsuario from "../assets/icone_usuario_chat.svg";
 import iconeTodos from "../assets/Todos.svg";
 import iconeAtendimento from "../assets/Atendimento.svg";
@@ -13,7 +12,6 @@ import iconeProfessores from "../assets/Professor.svg";
 import iconeAlunos from "../assets/alunos.svg";
 import iconeEnviar from "../assets/Paper_Plane.svg";
 
-// API
 import {
   getConversations,
   getMessages,
@@ -27,22 +25,17 @@ import {
 
 function Chat() {
   const [currentUser, setCurrentUser] = useState(null);
-
   const [conversas, setConversas] = useState([]);
   const [mensagens, setMensagens] = useState([]);
   const [conversaAtivaId, setConversaAtivaId] = useState(null);
-
   const [filtroAtivo, setFiltroAtivo] = useState("Todos");
   const [searchTerm, setSearchTerm] = useState("");
-
   const [novaMensagem, setNovaMensagem] = useState("");
   const [loading, setLoading] = useState(false);
   const [sendingMsg, setSendingMsg] = useState(false);
   const [error, setError] = useState(null);
-
   const chatBodyRef = useRef(null);
 
-  // Modal Novo Chat
   const [showUserModal, setShowUserModal] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
@@ -51,11 +44,9 @@ function Chat() {
   const [groupTitle, setGroupTitle] = useState("");
   const [creatingChat, setCreatingChat] = useState(false);
 
-  // Modal Excluir
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Busca usuário logado
   useEffect(() => {
     (async () => {
       try {
@@ -68,7 +59,6 @@ function Chat() {
     })();
   }, []);
 
-  // Conversas
   const fetchConversas = useCallback(async () => {
     try {
       setLoading(true);
@@ -88,7 +78,6 @@ function Chat() {
     fetchConversas();
   }, [fetchConversas]);
 
-  // Mensagens
   const fetchMensagens = useCallback(async () => {
     if (!conversaAtivaId) return;
     const controller = new AbortController();
@@ -113,19 +102,16 @@ function Chat() {
     return () => controller.abort();
   }, [conversaAtivaId]);
 
-  // Carrega quando troca a conversa
   useEffect(() => {
     if (conversaAtivaId) fetchMensagens();
   }, [conversaAtivaId, fetchMensagens]);
 
-  // Polling a cada 5s
   useEffect(() => {
     if (!conversaAtivaId) return;
     const id = setInterval(fetchMensagens, 5000);
     return () => clearInterval(id);
   }, [conversaAtivaId, fetchMensagens]);
 
-  // Scroll sempre no fim
   useEffect(() => {
     if (chatBodyRef.current) {
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
@@ -137,7 +123,6 @@ function Chat() {
     const trimmed = novaMensagem.trim();
     if (!trimmed || !conversaAtivaId) return;
 
-    // Otimista
     const tempId = `temp-${Date.now()}`;
     const optimistic = {
       id: tempId,
@@ -170,7 +155,6 @@ function Chat() {
     }
   };
 
-  // Atalhos
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey && !sendingMsg) {
       e.preventDefault();
@@ -184,7 +168,6 @@ function Chat() {
     }
   };
 
-  // Selecionar conversa
   const selecionarConversa = (conversaId) => {
     if (conversaAtivaId === conversaId) return;
     setConversaAtivaId(conversaId);
@@ -207,7 +190,6 @@ function Chat() {
     return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
 
-  // Modal Novo Chat
   const loadUsers = async (query) => {
     try {
       setUsersLoading(true);
@@ -242,7 +224,7 @@ function Chat() {
     if (!showUserModal) return;
     const t = setTimeout(() => loadUsers(userSearch.trim()), 300);
     return () => clearTimeout(t);
-  }, [userSearch, showUserModal, loadUsers]); // ✅ corrigido warning
+  }, [userSearch, showUserModal]);
 
   useEffect(() => {
     if (!showUserModal) return;
@@ -286,7 +268,6 @@ function Chat() {
     }
   };
 
-  // Excluir conversa
   const openDeleteModal = () => setShowDeleteModal(true);
   const closeDeleteModal = () => {
     if (!deleting) setShowDeleteModal(false);
@@ -323,7 +304,6 @@ function Chat() {
           )}
 
           <div className="row">
-            {/* Lista de conversas */}
             <div className="col-md-4">
               <div className="card shadow-sm">
                 <div className="card-body p-0">
@@ -414,7 +394,6 @@ function Chat() {
               </div>
             </div>
 
-            {/* Área do chat */}
             <div className="col-md-8">
               <div className="card shadow-sm chat-card">
                 <div className="card-header bg-light d-flex align-items-center justify-content-between">
@@ -532,7 +511,6 @@ function Chat() {
             </div>
           </div>
 
-          {/* Modal Excluir */}
           {showDeleteModal && (
             <>
               <div className="modal fade show" style={{ display: "block" }} tabIndex="-1" role="dialog" aria-modal="true">
@@ -563,7 +541,6 @@ function Chat() {
             </>
           )}
 
-          {/* Modal Novo Chat */}
           {showUserModal && (
             <>
               <div className="modal fade show" style={{ display: "block" }} tabIndex="-1" role="dialog" aria-modal="true">

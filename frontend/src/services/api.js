@@ -1,4 +1,7 @@
+// src/services/api.js
 const API_URL = "http://localhost:8000";
+
+/* ==================== GERENCIAMENTO DE TOKEN ==================== */
 
 const getToken = () => sessionStorage.getItem("access_token");
 const setToken = (token) => sessionStorage.setItem("access_token", token);
@@ -23,6 +26,8 @@ const handleResponse = async (response) => {
   }
   return null;
 };
+
+/* ==================== AUTENTICAÇÃO ==================== */
 
 export const login = async (registration, password) => {
   const response = await fetch(`${API_URL}/auth/login/`, {
@@ -63,6 +68,8 @@ export const validateSession = async () => {
   }
 };
 
+/* ==================== USUÁRIOS ==================== */
+
 export const getCurrentUser = async () => {
   const response = await fetch(`${API_URL}/users/me/`, {
     method: "GET",
@@ -80,6 +87,7 @@ export const updateProfile = async (userData) => {
   return handleResponse(response);
 };
 
+// Listar usuários para o modal de novo chat
 export const listUsers = async (query = "") => {
   const qs = query ? `?q=${encodeURIComponent(query)}` : "";
   const response = await fetch(`${API_URL}/users/${qs}`, {
@@ -88,6 +96,8 @@ export const listUsers = async (query = "") => {
   });
   return handleResponse(response);
 };
+
+/* ==================== EVENTOS ==================== */
 
 const eventToBackend = (event) => ({
   title: event.title || event.titulo,
@@ -174,6 +184,9 @@ export const deleteEvent = async (eventId) => {
   return handleResponse(response);
 };
 
+/* ==================== CHAT ==================== */
+
+// Lista conversas
 export const getConversations = async () => {
   const response = await fetch(`${API_URL}/chats/`, {
     headers: getHeaders(),
@@ -181,6 +194,7 @@ export const getConversations = async () => {
   return handleResponse(response);
 };
 
+// Mensagens da conversa — aceita options (ex.: { signal })
 export const getMessages = async (chatId, options = {}) => {
   const response = await fetch(`${API_URL}/chats/${chatId}/messages`, {
     method: "GET",
@@ -190,6 +204,7 @@ export const getMessages = async (chatId, options = {}) => {
   return handleResponse(response);
 };
 
+// Enviar mensagem
 export const sendMessage = async (chatId, messageContent) => {
   const response = await fetch(`${API_URL}/chats/${chatId}/messages`, {
     method: "POST",
@@ -199,6 +214,7 @@ export const sendMessage = async (chatId, messageContent) => {
   return handleResponse(response);
 };
 
+// Marcar como lidas
 export const markAllMessagesAsRead = async (chatId) => {
   const response = await fetch(`${API_URL}/chats/${chatId}/read`, {
     method: "POST",
@@ -207,6 +223,7 @@ export const markAllMessagesAsRead = async (chatId) => {
   return handleResponse(response);
 };
 
+// Criar conversa
 export const createConversation = async (participantIds, title) => {
   const body = { participant_ids: participantIds };
   if (title) body.title = title;
@@ -219,6 +236,7 @@ export const createConversation = async (participantIds, title) => {
   return handleResponse(response);
 };
 
+// **Excluir conversa** (ADICIONADO)
 export const deleteConversation = async (chatId) => {
   const response = await fetch(`${API_URL}/chats/${chatId}/`, {
     method: "DELETE",
@@ -226,59 +244,65 @@ export const deleteConversation = async (chatId) => {
   });
   return handleResponse(response);
 };
-
-export const getPosts = async (type = null) => {
-  const qs = type ? `?post_type=${type}` : "";
-  const response = await fetch(`${API_URL}/posts/${qs}`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-  return handleResponse(response);
+/* ==================== PUBLICAÇÕES (MURAL / POSTS) ==================== */
+// lista posts para o mural
+export const getAnnouncements = async (params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.type) qs.set("type", params.type); // opcional, se o backend ignorar tudo bem
+  const url = `${API_URL}/posts/${qs.toString() ? `?${qs}` : ""}`;
+  const resp = await fetch(url, { method: "GET", headers: getHeaders() });
+  return handleResponse(resp);
 };
 
-export const getPost = async (postId) => {
-  const response = await fetch(`${API_URL}/posts/${postId}`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-  return handleResponse(response);
-};
-
-export const createPost = async (postData) => {
-  const response = await fetch(`${API_URL}/posts/`, {
+// cria post (comunicado)
+export const sendAnnouncement = async (payload) => {
+  const resp = await fetch(`${API_URL}/posts/`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify(postData),
+    body: JSON.stringify({
+      title: payload.title || "Comunicado",
+      content: payload.message || payload.content || "",
+    }),
   });
-  return handleResponse(response);
+  return handleResponse(resp);
 };
 
-export const updatePost = async (postId, postData) => {
-  const response = await fetch(`${API_URL}/posts/${postId}`, {
+export const updateAnnouncement = async (id, payload) => {
+  const resp = await fetch(`${API_URL}/posts/${id}`, {
     method: "PATCH",
     headers: getHeaders(),
-    body: JSON.stringify(postData),
+    body: JSON.stringify(payload),
   });
-  return handleResponse(response);
+  return handleResponse(resp);
 };
 
-export const deletePost = async (postId) => {
-  const response = await fetch(`${API_URL}/posts/${postId}`, {
-    method: "DELETE",
-    headers: getHeaders(),
-  });
-  return handleResponse(response);
+export const deleteAnnouncement = async (id) => {
+  const resp = await fetch(`${API_URL}/posts/${id}`, { method: "DELETE", headers: getHeaders() });
+  return handleResponse(resp);
 };
 
-export const getPostsStats = async (type = null) => {
-  const qs = type ? `?post_type=${type}` : "";
-  const response = await fetch(`${API_URL}/posts/stats/count${qs}`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-  return handleResponse(response);
+/* ==================== CATÁLOGOS PARA FILTROS (CURSOS / MATÉRIAS / TURMAS) ==================== */
+// ajuste os endpoints se o backend usar nomes diferentes
+export const getCourses = async (q = "") => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  const resp = await fetch(`${API_URL}/courses/${qs}`, { method: "GET", headers: getHeaders() });
+  return handleResponse(resp);
 };
+
+export const getSubjects = async (q = "") => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  const resp = await fetch(`${API_URL}/subjects/${qs}`, { method: "GET", headers: getHeaders() });
+  return handleResponse(resp);
+};
+
+export const getClasses = async (q = "") => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  const resp = await fetch(`${API_URL}/classes/${qs}`, { method: "GET", headers: getHeaders() });
+  return handleResponse(resp);
+};
+
+/* ==================== UTILITÁRIOS ==================== */
 
 export const isAuthenticated = () => !!getToken();
 
-export { getToken, setToken, removeToken };
+export { getToken, setToken, removeToken }
