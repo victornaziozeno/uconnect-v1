@@ -1,8 +1,14 @@
+# ---------------- SCHEMAS (MODELOS DE DADOS) Pydantic ---------------- #
+"""
+Este arquivo, schemas.py, define os modelos de dados (schemas) da API
+utilizando a biblioteca Pydantic.
+"""
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime, date, time
 from typing import Optional, List
-from .models import UserRole, AccessStatus, PostType
+from .models import UserRole, AccessStatus
 
+# --- Schemas de Autenticação ---
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -15,6 +21,7 @@ class UserLogin(BaseModel):
     registration: str
     password: str
 
+# --- Schemas de Usuário ---
 class UserBase(BaseModel):
     registration: str
     name: str
@@ -41,6 +48,7 @@ class UserStatusUpdate(BaseModel):
 class UserRoleUpdate(BaseModel):
     role: str
 
+# --- Schemas de Eventos (Calendário) ---
 class EventBase(BaseModel):
     title: str
     description: Optional[str] = None
@@ -77,6 +85,7 @@ class EventResponse(BaseModel):
     creatorId: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
+# --- Schemas de Grupos Acadêmicos ---
 class AcademicGroupBase(BaseModel):
     course: str
     classGroup: str
@@ -95,10 +104,10 @@ class AcademicGroupResponse(AcademicGroupBase):
 class AcademicGroupDetailResponse(AcademicGroupResponse):
     users: List[UserResponse] = []
 
+# --- Schemas de Publicações (Posts) ---
 class PostBase(BaseModel):
     title: str = Field(..., min_length=3)
     content: str = Field(..., min_length=3)
-    type: PostType = PostType.announcement
 
 class PostCreate(PostBase):
     pass
@@ -106,7 +115,6 @@ class PostCreate(PostBase):
 class PostUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=3)
     content: Optional[str] = Field(None, min_length=3)
-    type: Optional[PostType] = None
 
 class PostResponse(PostBase):
     id: int
@@ -114,6 +122,7 @@ class PostResponse(PostBase):
     author: UserResponse
     model_config = ConfigDict(from_attributes=True)
 
+# --- Esquemas para Mensagens ---
 class MessageBase(BaseModel):
     content: str
 
@@ -124,9 +133,10 @@ class Message(MessageBase):
     id: int
     timestamp: datetime
     authorId: int
-    authorName: Optional[str] = None
+    authorName: Optional[str] = None  # <- Nome do autor
     model_config = ConfigDict(from_attributes=True)
 
+# --- Esquemas para Conversas (Chat) ---
 class UserSimple(BaseModel):
     id: int
     name: str
@@ -139,6 +149,31 @@ class Chat(BaseModel):
     last_message: Optional[Message] = None
     model_config = ConfigDict(from_attributes=True)
 
-class ChatCreate(BaseModel):
-    participant_ids: List[int]
-    title: Optional[str] = None
+class SubchannelBase(BaseModel):
+    name: str
+
+class SubchannelCreate(SubchannelBase):
+    pass
+
+class Subchannel(SubchannelBase):
+    id: int
+    parentChannelId: int
+
+    class Config:
+        orm_mode = True
+
+
+class ChannelBase(BaseModel):
+    name: str
+    classGroup: Optional[str] = None
+
+class ChannelCreate(ChannelBase):
+    pass
+
+class Channel(ChannelBase):
+    id: int
+    creatorId: int
+    subchannelsList: List[Subchannel] = []
+
+    class Config:
+        orm_mode = True
